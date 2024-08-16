@@ -1,0 +1,16 @@
+[package]
+name = "kontestis-evaluator-v2"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.86"
+core_affinity = "0.8.1"
+redis = { version = "0.26.1", features = ["aio", "tokio-comp", "connection-manager"] }
+serde = { version = "1.0.205", features = ["serde_derive"] }
+serde_json = "1.0.122"
+thiserror = "1.0.63"
+tokio = { version = "1.39.2" , features = ["full"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+waitgroup = "0.1.2"
