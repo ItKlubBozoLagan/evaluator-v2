@@ -10,6 +10,9 @@ mod redis;
 mod state;
 mod tracing;
 
+mod evaluate;
+mod isolate;
+
 fn main() -> anyhow::Result<()> {
     setup_tracing();
 

@@ -14,3 +14,7 @@ tokio = { version = "1.39.2" , features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 waitgroup = "0.1.2"
+libc = "0.2.155"
+libseccomp = "0.3.0"
+libseccomp-sys = "0.2.1"
+rand = "0.8.5"
