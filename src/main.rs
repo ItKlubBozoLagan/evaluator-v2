@@ -1,9 +1,8 @@
-use crate::messages::{Evaluation, Message};
+use crate::messages::Message;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
 use std::sync::Arc;
-use ::tracing::{debug, info};
-use waitgroup::WaitGroup;
+use ::tracing::info;
 
 mod messages;
 mod redis;
@@ -12,6 +11,7 @@ mod tracing;
 
 mod evaluate;
 mod isolate;
+mod util;
 
 fn main() -> anyhow::Result<()> {
     setup_tracing();
@@ -33,23 +33,19 @@ async fn entrypoint() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState {
         redis_queue_key: "evaluator_msg_queue".to_string(),
-        evaluation_wg: WaitGroup::new(),
-        max_evaluations: 1
+        // evaluation_wg: WaitGroup::new(),
+        // max_evaluations: 1
     });
 
     let mut connection = redis::get_connection("redis://localhost:6379").await?;
 
-    let (tx, mut rx) = tokio::sync::broadcast::channel::<Message>(16);
+    let (tx, _) = tokio::sync::broadcast::channel::<Message>(16);
 
-    let a = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            debug!("{msg:?}");
-        }
-    });
+    let evaluation_handler = tokio::spawn(evaluate::queue_handler::handle(state.clone(), tx.subscribe()));
 
     messages::handler::handle_messages(state.clone(), &mut connection, tx).await;
 
-    let _ = a.await;
+    let _ = evaluation_handler.await;
 
     Ok(())
 }

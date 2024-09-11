@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 pub mod handler;
 
 
@@ -17,6 +19,12 @@ pub enum EvaluationLanguage {
     Java,
     Go,
     None,
+}
+
+impl Display for EvaluationLanguage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
