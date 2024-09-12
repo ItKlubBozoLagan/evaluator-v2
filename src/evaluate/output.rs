@@ -18,7 +18,7 @@ fn trim_every_line(input: &str) -> String {
 }
 
 impl OutputChecking {
-    pub fn validate(&self, output: &str, testcase: &Testcase) -> anyhow::Result<CheckerResult> {
+    pub fn check(&self, output: &str, testcase: &Testcase) -> anyhow::Result<CheckerResult> {
         match self {
             OutputChecking::Checker(process) => {
                 let mut separator = String::from("[");

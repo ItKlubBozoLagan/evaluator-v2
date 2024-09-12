@@ -4,7 +4,7 @@ use crate::isolate::wrap_isolate;
 use crate::messages::EvaluationLanguage;
 use crate::util;
 
-pub fn process_compilation_step(code: &str, language: &EvaluationLanguage) -> Result<CompilationResult, CompilationError> {
+pub fn process_compilation(code: &str, language: &EvaluationLanguage) -> Result<CompilationResult, CompilationError> {
     match language {
         EvaluationLanguage::Python => Ok(CompilationResult {
             process: RunnableProcess::Python(code.to_string()),

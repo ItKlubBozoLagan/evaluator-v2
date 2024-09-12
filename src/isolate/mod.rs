@@ -35,17 +35,14 @@ pub fn wrap_isolate(command: (&str, &[String]), extra_dirs: Option<&[String]>, s
 }
 
 fn write_stdin_to_file(stdin: &[u8]) -> Result<PathBuf, IsolateError> {
-    let mut dir: PathBuf = PathBuf::new();
-
     // TODO: cleanup
-    loop {
+    let dir = loop {
         let dir_location = format!("/tmp/kontestis-{}", random_bytes(16));
         let local_dir = Path::new(&dir_location);
         if !local_dir.exists() {
-            dir = local_dir.to_path_buf();
-            break;
+            break local_dir.to_path_buf();
         }
-    }
+    };
 
     std::fs::create_dir_all(&dir).map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
 
