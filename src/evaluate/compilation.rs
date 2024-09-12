@@ -3,7 +3,6 @@ use crate::evaluate::{CompilationError, CompilationResult};
 use crate::isolate::wrap_isolate;
 use crate::messages::EvaluationLanguage;
 use crate::util;
-use std::io::Write;
 
 pub fn process_compilation_step(code: &str, language: &EvaluationLanguage) -> Result<CompilationResult, CompilationError> {
     match language {
@@ -19,13 +18,8 @@ fn compile(code: &str, language: &EvaluationLanguage) -> Result<CompilationResul
 
     let (compiler, args) = language.get_compiler_command(output_file.clone()).ok_or_else(|| CompilationError::UnsupportedLanguage(language.clone()))?;
 
-    let mut child = wrap_isolate((compiler, &args), None)
-        .stdin(std::process::Stdio::piped())
+    let child = wrap_isolate((compiler, &args), None, code.as_bytes())?
         .spawn()?;
-
-    let mut child_stdin = child.stdin.take().unwrap();
-    child_stdin.write_all(code.as_bytes())?;
-    drop(child_stdin);
 
     let output = child.wait_with_output()?;
 

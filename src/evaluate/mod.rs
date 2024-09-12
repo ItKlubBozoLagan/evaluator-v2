@@ -6,6 +6,7 @@ mod compilation;
 mod output;
 
 use crate::evaluate::runnable::RunnableProcess;
+use crate::isolate::IsolateError;
 use crate::messages::{Evaluation, EvaluationLanguage, ProblemType};
 use thiserror::Error;
 
@@ -62,7 +63,10 @@ pub enum CompilationError {
     CompilationError(String),
 
     #[error("Tried to compile a non-compiled language: ${0}")]
-    UnsupportedLanguage(EvaluationLanguage)
+    UnsupportedLanguage(EvaluationLanguage),
+
+    #[error("Isolate error: {0}")]
+    IsolateError(#[from] IsolateError)
 }
 
 // TODO: wrap everything in isolate

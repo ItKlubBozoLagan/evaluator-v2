@@ -1,7 +1,6 @@
 use crate::evaluate::runnable::RunnableProcess;
 use crate::messages::Testcase;
 use crate::util::random_bytes;
-use std::io::Write;
 
 pub enum OutputChecking {
     Checker(RunnableProcess),
@@ -26,8 +25,6 @@ impl OutputChecking {
                 separator.push_str(&random_bytes(32));
                 separator.push_str("]\n");
 
-                let mut running = process.run()?;
-
                 let mut input = String::new();
                 input.push_str(&separator);
                 input.push_str(&testcase.input);
@@ -40,9 +37,7 @@ impl OutputChecking {
                 input.push('\n');
                 input.push_str(&separator);
 
-                let mut child_stdin = running.stdin.take().unwrap();
-                child_stdin.write_all(input.as_bytes())?;
-                drop(child_stdin);
+                let running = process.run(input.as_bytes())?;
 
                 let output = running.wait_with_output()?;
 

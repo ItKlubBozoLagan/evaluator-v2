@@ -5,8 +5,8 @@ use crate::messages::Evaluation;
 pub fn evaluate(evaluation: &Evaluation) -> Result<SuccessfulEvaluation, EvaluationError> {
     let compilation_result = process_compilation_step(evaluation.code.as_str(), &evaluation.language)?;
 
-    let running_process = compilation_result.process.run()?;
-
+    // let running_process = compilation_result.process.run()?;
+    
     // TODO: figure out checker
 
     todo!()
