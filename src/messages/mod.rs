@@ -2,7 +2,6 @@ use std::fmt::{Display, Formatter};
 
 pub mod handler;
 
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub enum ProblemType {
     Batch,
@@ -44,10 +43,10 @@ pub struct Evaluation {
 pub struct Testcase {
     pub id: u64,
     pub input: String,
-    pub output: String
+    pub output: String,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub enum Message {
-    BeginEvaluation(Evaluation)
+    BeginEvaluation(Evaluation),
 }

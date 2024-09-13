@@ -7,13 +7,17 @@ use std::process::Command;
 #[derive(thiserror::Error, Debug)]
 pub enum IsolateError {
     #[error("Failed to write stdin into file: {0}")]
-    StdinIntoFileError(String)
+    StdinIntoFileError(String),
 }
 
 // NOTE: maybe use tokio::process::Command if issues arise
-pub fn wrap_isolate(command: (&str, &[String]), extra_dirs: Option<&[String]>, stdin: &[u8]) -> Result<Command, IsolateError> {
+pub fn wrap_isolate(
+    command: (&str, &[String]),
+    extra_dirs: Option<&[String]>,
+    stdin: &[u8],
+) -> Result<Command, IsolateError> {
     let stdin_dir = write_stdin_to_file(stdin)?.display().to_string();
-    let stdin_file_name =format!("{}/.stdin", stdin_dir);
+    let stdin_file_name = format!("{}/.stdin", stdin_dir);
 
     let mut isolate_command = Command::new("/usr/bin/isolate");
     if let Some(dirs) = extra_dirs {
@@ -44,11 +48,14 @@ fn write_stdin_to_file(stdin: &[u8]) -> Result<PathBuf, IsolateError> {
         }
     };
 
-    std::fs::create_dir_all(&dir).map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
 
-    let mut file = File::create(Path::join(&dir, ".stdin")).map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
+    let mut file = File::create(Path::join(&dir, ".stdin"))
+        .map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
 
-    file.write_all(stdin).map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
+    file.write_all(stdin)
+        .map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
 
     Ok(dir)
 }

@@ -6,7 +6,6 @@ use crate::messages::Evaluation;
 pub fn evaluate(evaluation: &Evaluation) -> Result<SuccessfulEvaluation, EvaluationError> {
     let compilation_result = process_compilation(&evaluation.code, &evaluation.language)?;
 
-
     let checker = match &evaluation.checker_script {
         Some(script) if evaluation.checker_language.is_some() => {
             let language = evaluation.checker_language.as_ref().unwrap();
@@ -15,7 +14,7 @@ pub fn evaluate(evaluation: &Evaluation) -> Result<SuccessfulEvaluation, Evaluat
 
             OutputChecking::Checker(compiled_checker.process)
         }
-        _ => OutputChecking::Raw
+        _ => OutputChecking::Raw,
     };
 
     let mut global_verdict = Verdict::Accepted;
@@ -51,7 +50,7 @@ pub fn evaluate(evaluation: &Evaluation) -> Result<SuccessfulEvaluation, Evaluat
             CheckerResult::Accepted => Verdict::Accepted,
             CheckerResult::WrongAnswer => Verdict::WrongAnswer,
             // TODO: ?
-            CheckerResult::Custom(_message) => Verdict::Accepted
+            CheckerResult::Custom(_message) => Verdict::Accepted,
         };
 
         // TODO: finish
@@ -65,6 +64,6 @@ pub fn evaluate(evaluation: &Evaluation) -> Result<SuccessfulEvaluation, Evaluat
         verdict: global_verdict,
         max_memory: 0,
         max_time: 0,
-        testcases: Vec::new()
+        testcases: Vec::new(),
     })
 }

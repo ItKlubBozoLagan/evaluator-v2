@@ -8,23 +8,22 @@ pub enum ProcessRunError {
     IOError(#[from] std::io::Error),
 
     #[error("Isolate error: {0}")]
-    IsolateError(#[from] IsolateError)
+    IsolateError(#[from] IsolateError),
 }
 
 #[derive(Debug)]
 pub enum RunnableProcess {
     Compiled(String),
-    Python(String)
+    Python(String),
 }
 
 impl RunnableProcess {
     pub fn run(&self, stdin: &[u8]) -> Result<Child, ProcessRunError> {
         Ok(match self {
-            RunnableProcess::Compiled(file) => wrap_isolate((file, &[]), None, stdin)?
-                .spawn()?,
-            RunnableProcess::Python(code) =>
+            RunnableProcess::Compiled(file) => wrap_isolate((file, &[]), None, stdin)?.spawn()?,
+            RunnableProcess::Python(code) => {
                 wrap_isolate(("python", &["-c".to_string(), code.clone()]), None, stdin)?.spawn()?
-
+            }
         })
     }
 }

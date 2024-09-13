@@ -4,17 +4,21 @@ use crate::util::random_bytes;
 
 pub enum OutputChecking {
     Checker(RunnableProcess),
-    Raw
+    Raw,
 }
 
 pub enum CheckerResult {
     Accepted,
     WrongAnswer,
-    Custom(String)
+    Custom(String),
 }
 
 fn trim_every_line(input: &str) -> String {
-    input.split("\n").map(|line| line.trim()).collect::<Vec<_>>().join(" ")
+    input
+        .split('\n')
+        .map(|line| line.trim())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 impl OutputChecking {
@@ -51,7 +55,7 @@ impl OutputChecking {
                 if text_output.starts_with("custom:") {
                     let (_, message) = text_output.split_once(':').unwrap();
 
-                    return Ok(CheckerResult::Custom(message.to_string()))
+                    return Ok(CheckerResult::Custom(message.to_string()));
                 }
 
                 let text_output = text_output.to_ascii_lowercase();
@@ -66,10 +70,10 @@ impl OutputChecking {
 
                 // TODO: gracefully handle
                 unreachable!();
-            },
+            }
             OutputChecking::Raw => {
                 if trim_every_line(output) == trim_every_line(&testcase.output) {
-                    return Ok(CheckerResult::Accepted)
+                    return Ok(CheckerResult::Accepted);
                 }
 
                 Ok(CheckerResult::WrongAnswer)
