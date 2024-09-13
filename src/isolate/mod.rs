@@ -15,7 +15,7 @@ pub fn wrap_isolate(command: (&str, &[String]), extra_dirs: Option<&[String]>, s
     let stdin_dir = write_stdin_to_file(stdin)?.display().to_string();
     let stdin_file_name =format!("{}/.stdin", stdin_dir);
 
-    let mut isolate_command = Command::new("/home/visen/isolate/isolate");
+    let mut isolate_command = Command::new("/usr/bin/isolate");
     if let Some(dirs) = extra_dirs {
         for dir in dirs {
             isolate_command.arg("--dir").arg(dir);
