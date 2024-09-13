@@ -1,22 +1,29 @@
-use crate::evaluate::runnable::RunnableProcess;
+use crate::evaluate::runnable::{CompiledProcessData, PythonProcessData, RunnableProcess};
 use crate::evaluate::{CompilationError, CompilationResult};
-use crate::isolate::wrap_isolate;
+use crate::isolate::{make_program_work_dir, wrap_isolate};
 use crate::messages::EvaluationLanguage;
 use crate::util;
+use std::path::PathBuf;
 
 pub fn process_compilation(
     code: &str,
     language: &EvaluationLanguage,
 ) -> Result<CompilationResult, CompilationError> {
+    let work_dir = make_program_work_dir()?;
+
     match language {
         EvaluationLanguage::Python => Ok(CompilationResult {
-            process: RunnableProcess::Python(code.to_string()),
+            process: RunnableProcess::Python(PythonProcessData {
+                work_dir,
+                code: code.to_string(),
+            }),
         }),
-        _ => compile(code, language),
+        _ => compile(&work_dir, code, language),
     }
 }
 
 fn compile(
+    work_dir: &PathBuf,
     code: &str,
     language: &EvaluationLanguage,
 ) -> Result<CompilationResult, CompilationError> {
@@ -26,7 +33,7 @@ fn compile(
         .get_compiler_command(output_file.clone())
         .ok_or_else(|| CompilationError::UnsupportedLanguage(language.clone()))?;
 
-    let child = wrap_isolate((compiler, &args), None, code.as_bytes())?.spawn()?;
+    let child = wrap_isolate(work_dir, (compiler, &args), None, code.as_bytes())?.spawn()?;
 
     let output = child.wait_with_output()?;
 
@@ -37,6 +44,9 @@ fn compile(
     }
 
     Ok(CompilationResult {
-        process: RunnableProcess::Compiled(output_file),
+        process: RunnableProcess::Compiled(CompiledProcessData {
+            work_dir: work_dir.clone(),
+            executable_name: output_file,
+        }),
     })
 }

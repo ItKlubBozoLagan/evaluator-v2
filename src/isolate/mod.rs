@@ -12,12 +12,13 @@ pub enum IsolateError {
 
 // NOTE: maybe use tokio::process::Command if issues arise
 pub fn wrap_isolate(
+    work_dir: &PathBuf,
     command: (&str, &[String]),
     extra_dirs: Option<&[String]>,
     stdin: &[u8],
 ) -> Result<Command, IsolateError> {
-    let stdin_dir = write_stdin_to_file(stdin)?.display().to_string();
-    let stdin_file_name = format!("{}/.stdin", stdin_dir);
+    write_stdin_to_file(work_dir, stdin)?;
+    let stdin_file_name = format!("{}/.stdin", work_dir.display());
 
     let mut isolate_command = Command::new("/usr/bin/isolate");
     if let Some(dirs) = extra_dirs {
@@ -26,20 +27,25 @@ pub fn wrap_isolate(
         }
     }
     isolate_command.arg("--dir");
-    isolate_command.arg(stdin_dir);
+    isolate_command.arg(work_dir);
+
+    isolate_command.arg("-E");
+    isolate_command.arg("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+
     isolate_command.arg("--stdin");
     isolate_command.arg(stdin_file_name);
+
     isolate_command.arg("--run");
     isolate_command.arg("--");
-    isolate_command.arg(command.0);
+    isolate_command.arg(format!("{}/{}", work_dir.display(), command.0));
     isolate_command.args(command.1);
 
     dbg!(&isolate_command);
     Ok(isolate_command)
 }
 
-fn write_stdin_to_file(stdin: &[u8]) -> Result<PathBuf, IsolateError> {
-    // TODO: cleanup
+// TODO: extract into separate file
+pub fn make_program_work_dir() -> std::io::Result<PathBuf> {
     let dir = loop {
         let dir_location = format!("/tmp/kontestis-{}", random_bytes(16));
         let local_dir = Path::new(&dir_location);
@@ -48,14 +54,18 @@ fn write_stdin_to_file(stdin: &[u8]) -> Result<PathBuf, IsolateError> {
         }
     };
 
-    std::fs::create_dir_all(&dir)
-        .map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
+    std::fs::create_dir_all(&dir)?;
 
-    let mut file = File::create(Path::join(&dir, ".stdin"))
+    Ok(dir)
+}
+
+fn write_stdin_to_file(dir: &PathBuf, stdin: &[u8]) -> Result<(), IsolateError> {
+    // TODO: cleanup
+    let mut file = File::create(Path::join(dir, ".stdin"))
         .map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
 
     file.write_all(stdin)
         .map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
 
-    Ok(dir)
+    Ok(())
 }

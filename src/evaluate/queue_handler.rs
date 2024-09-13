@@ -9,6 +9,6 @@ pub async fn handle(_state: Arc<AppState>, mut rx: Receiver<Message>) {
     while let Ok(Message::BeginEvaluation(evaluation)) = rx.recv().await {
         debug!("Got evaluation request: {evaluation:?}");
         // TODO: lock to thread
-        begin_evaluation(evaluation);
+        let res = begin_evaluation(evaluation);
     }
 }
