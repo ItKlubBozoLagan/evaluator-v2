@@ -29,17 +29,18 @@ pub struct SuccessfulEvaluation {
 
 #[derive(Debug)]
 pub struct TestcaseResult {
-    id: u32,
+    id: u64,
     verdict: Verdict,
     time: u32,
     memory: u32,
     error: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Verdict {
     Accepted,
     WrongAnswer,
+    Custom(String),
     TimeLimitExceeded,
     MemoryLimitExceeded,
     RuntimeError,

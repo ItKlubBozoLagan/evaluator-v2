@@ -10,5 +10,7 @@ pub async fn handle(_state: Arc<AppState>, mut rx: Receiver<Message>) {
         debug!("Got evaluation request: {evaluation:?}");
         // TODO: lock to thread
         let res = begin_evaluation(evaluation);
+
+        dbg!(&res);
     }
 }

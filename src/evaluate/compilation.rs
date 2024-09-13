@@ -3,7 +3,7 @@ use crate::evaluate::{CompilationError, CompilationResult};
 use crate::isolate::{make_program_work_dir, wrap_isolate};
 use crate::messages::EvaluationLanguage;
 use crate::util;
-use std::path::PathBuf;
+use std::path::Path;
 
 pub fn process_compilation(
     code: &str,
@@ -23,17 +23,17 @@ pub fn process_compilation(
 }
 
 fn compile(
-    work_dir: &PathBuf,
+    work_dir: &Path,
     code: &str,
     language: &EvaluationLanguage,
 ) -> Result<CompilationResult, CompilationError> {
     let output_file = util::random_bytes(32);
 
     let (compiler, args) = language
-        .get_compiler_command(output_file.clone())
+        .get_compiler_command(work_dir.join(&output_file).display().to_string())
         .ok_or_else(|| CompilationError::UnsupportedLanguage(language.clone()))?;
 
-    let child = wrap_isolate(work_dir, (compiler, &args), None, code.as_bytes())?.spawn()?;
+    let child = wrap_isolate(work_dir, (compiler, &args), true, None, code.as_bytes())?.spawn()?;
 
     let output = child.wait_with_output()?;
 
@@ -45,7 +45,7 @@ fn compile(
 
     Ok(CompilationResult {
         process: RunnableProcess::Compiled(CompiledProcessData {
-            work_dir: work_dir.clone(),
+            work_dir: work_dir.to_path_buf(),
             executable_name: output_file,
         }),
     })

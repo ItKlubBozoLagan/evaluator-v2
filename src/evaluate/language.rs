@@ -6,7 +6,7 @@ impl EvaluationLanguage {
         type E = EvaluationLanguage;
         match self {
             E::C => Some((
-                "gcc",
+                "/usr/bin/gcc",
                 vec![
                     "-x".to_string(),
                     "c".to_string(),
@@ -18,7 +18,7 @@ impl EvaluationLanguage {
                 ],
             )),
             E::Cpp => Some((
-                "g++",
+                "/usr/bin/g++",
                 vec![
                     "-x".to_string(),
                     "c++".to_string(),
@@ -30,9 +30,9 @@ impl EvaluationLanguage {
                 ],
             )),
             E::Rust => Some(("rustc", vec!["-o".to_string(), out_file, "-".to_string()])),
-            E::Java => Some(("javac", vec![])),
+            E::Java => Some(("/usr/bin/javac", vec![])),
             E::Go => Some((
-                "go",
+                "/usr/bin/go",
                 vec![
                     "build".to_string(),
                     "-o".to_string(),

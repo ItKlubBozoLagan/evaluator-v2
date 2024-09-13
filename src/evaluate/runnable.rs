@@ -36,10 +36,11 @@ impl RunnableProcess {
             RunnableProcess::Compiled(CompiledProcessData {
                 work_dir,
                 executable_name,
-            }) => wrap_isolate(work_dir, (executable_name, &[]), None, stdin)?.spawn()?,
+            }) => wrap_isolate(work_dir, (executable_name, &[]), false, None, stdin)?.spawn()?,
             RunnableProcess::Python(PythonProcessData { work_dir, code }) => wrap_isolate(
                 work_dir,
-                ("python", &["-c".to_string(), code.clone()]),
+                ("/usr/bin/python3", &["-c".to_string(), code.clone()]),
+                true,
                 None,
                 stdin,
             )?

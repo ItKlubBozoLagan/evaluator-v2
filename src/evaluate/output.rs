@@ -2,8 +2,8 @@ use crate::evaluate::runnable::RunnableProcess;
 use crate::messages::Testcase;
 use crate::util::random_bytes;
 
-pub enum OutputChecking {
-    Checker(RunnableProcess),
+pub enum OutputChecker {
+    Script(RunnableProcess),
     Raw,
 }
 
@@ -19,12 +19,17 @@ fn trim_every_line(input: &str) -> String {
         .map(|line| line.trim())
         .collect::<Vec<_>>()
         .join(" ")
+        .trim()
+        .to_string()
 }
 
-impl OutputChecking {
+impl OutputChecker {
     pub fn check(&self, output: &str, testcase: &Testcase) -> anyhow::Result<CheckerResult> {
+        dbg!(&output);
+        dbg!(&testcase);
+
         match self {
-            OutputChecking::Checker(process) => {
+            OutputChecker::Script(process) => {
                 let mut separator = String::from("[");
                 separator.push_str(&random_bytes(32));
                 separator.push_str("]\n");
@@ -37,7 +42,7 @@ impl OutputChecking {
                 input.push_str(&testcase.output);
                 input.push('\n');
                 input.push_str(&separator);
-                input.push_str(&output);
+                input.push_str(output);
                 input.push('\n');
                 input.push_str(&separator);
 
@@ -71,7 +76,7 @@ impl OutputChecking {
                 // TODO: gracefully handle
                 unreachable!();
             }
-            OutputChecking::Raw => {
+            OutputChecker::Raw => {
                 if trim_every_line(output) == trim_every_line(&testcase.output) {
                     return Ok(CheckerResult::Accepted);
                 }
