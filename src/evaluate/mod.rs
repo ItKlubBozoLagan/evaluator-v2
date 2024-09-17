@@ -7,7 +7,7 @@ mod types;
 
 use crate::evaluate::runnable::RunnableProcess;
 use crate::isolate::IsolateError;
-use crate::messages::{Evaluation, EvaluationLanguage, ProblemType};
+use crate::messages::{Evaluation, EvaluationLanguage};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -72,9 +72,13 @@ pub enum CompilationError {
 
 // TODO: wrap everything in isolate
 pub fn begin_evaluation(evaluation: Evaluation) -> Result<SuccessfulEvaluation, EvaluationError> {
-    match evaluation.problem_type {
-        ProblemType::Batch => types::batch::evaluate(&evaluation),
-        ProblemType::OutputOnly => types::output_only::evaluate(&evaluation),
-        ProblemType::Interactive => types::interactive::evaluate(&evaluation),
+    match evaluation {
+        Evaluation::Batch(batch_evaluation) => types::batch::evaluate(&batch_evaluation),
+        Evaluation::OutputOnly(output_only_evaluation) => {
+            types::output_only::evaluate(&output_only_evaluation)
+        }
+        Evaluation::Interactive(interactive_evaluation) => {
+            types::interactive::evaluate(&interactive_evaluation)
+        }
     }
 }

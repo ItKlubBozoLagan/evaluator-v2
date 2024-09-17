@@ -2,7 +2,7 @@ use crate::evaluate::compilation::process_compilation;
 use crate::evaluate::output::{CheckerResult, OutputChecker};
 use crate::evaluate::runnable::RunnableProcess;
 use crate::evaluate::{EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict};
-use crate::messages::{Evaluation, Testcase};
+use crate::messages::{BatchEvaluation, Testcase};
 
 fn evaluate_with_testcase(
     process: &RunnableProcess,
@@ -69,19 +69,10 @@ fn evaluate_with_testcase(
     }
 }
 
-pub fn evaluate(evaluation: &Evaluation) -> Result<SuccessfulEvaluation, EvaluationError> {
+pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, EvaluationError> {
     let compilation_result = process_compilation(&evaluation.code, &evaluation.language)?;
 
-    let checker = match &evaluation.checker_script {
-        Some(script) if evaluation.checker_language.is_some() => {
-            let language = evaluation.checker_language.as_ref().unwrap();
-
-            let compiled_checker = process_compilation(script, language)?;
-
-            OutputChecker::Script(compiled_checker.process)
-        }
-        _ => OutputChecker::Raw,
-    };
+    let checker = (&evaluation.checker).try_into()?;
 
     let mut global_verdict = Verdict::Accepted;
 

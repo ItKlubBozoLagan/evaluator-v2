@@ -1,4 +1,6 @@
-use crate::messages::{Evaluation, EvaluationLanguage, Message, ProblemType, Testcase};
+use crate::messages::{
+    BatchEvaluation, CheckerData, Evaluation, EvaluationLanguage, Message, Testcase,
+};
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
 use std::sync::Arc;
@@ -31,7 +33,7 @@ fn main() -> anyhow::Result<()> {
 async fn entrypoint() -> anyhow::Result<()> {
     info!("Starting...");
 
-    let sample_evaluation = Evaluation {
+    let sample_evaluation = Evaluation::Batch(BatchEvaluation {
         id: 1,
         code: "
 #include<bits/stdc++.h>
@@ -54,8 +56,8 @@ int main() {
         time_limit: 0,
         memory_limit: 0,
         language: EvaluationLanguage::Cpp,
-        checker_script: Some(
-            r#"
+        checker: Some(CheckerData {
+            script: r#"
 def read_until(separator):
     out = ""
     while True:
@@ -76,9 +78,8 @@ subOut = read_until(separator)
 print(f"custom: {subOut}" if out.strip() == subOut.strip() else "WA")
         "#
             .to_string(),
-        ),
-        checker_language: Some(EvaluationLanguage::Python),
-        problem_type: ProblemType::Batch,
+            language: EvaluationLanguage::Python,
+        }),
         testcases: vec![
             Testcase {
                 id: 1,
@@ -91,7 +92,7 @@ print(f"custom: {subOut}" if out.strip() == subOut.strip() else "WA")
                 output: "89".to_string(),
             },
         ],
-    };
+    });
 
     let str = serde_json::to_string(&Message::BeginEvaluation(sample_evaluation))?;
     println!("{}", str);

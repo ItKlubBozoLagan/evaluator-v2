@@ -1,6 +1,8 @@
 use crate::evaluate::{EvaluationError, SuccessfulEvaluation};
-use crate::messages::Evaluation;
+use crate::messages::InteractiveEvaluation;
 
-pub fn evaluate(_evaluation: &Evaluation) -> Result<SuccessfulEvaluation, EvaluationError> {
+pub fn evaluate(
+    _evaluation: &InteractiveEvaluation,
+) -> Result<SuccessfulEvaluation, EvaluationError> {
     todo!()
 }

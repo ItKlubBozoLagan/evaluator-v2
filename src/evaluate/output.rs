@@ -1,5 +1,7 @@
+use crate::evaluate::compilation::process_compilation;
 use crate::evaluate::runnable::RunnableProcess;
-use crate::messages::Testcase;
+use crate::evaluate::CompilationError;
+use crate::messages::{CheckerData, Testcase};
 use crate::util::random_bytes;
 
 pub enum OutputChecker {
@@ -83,6 +85,21 @@ impl OutputChecker {
 
                 Ok(CheckerResult::WrongAnswer)
             }
+        }
+    }
+}
+
+impl TryFrom<&Option<CheckerData>> for OutputChecker {
+    type Error = CompilationError;
+
+    fn try_from(value: &Option<CheckerData>) -> Result<Self, Self::Error> {
+        match value {
+            Some(CheckerData { script, language }) => {
+                let compiled_checker = process_compilation(script, language)?;
+
+                Ok(OutputChecker::Script(compiled_checker.process))
+            }
+            _ => Ok(OutputChecker::Raw),
         }
     }
 }
