@@ -37,34 +37,12 @@ pub fn evaluate(
 ) -> Result<SuccessfulEvaluation, EvaluationError> {
     let checker = (&evaluation.checker).try_into()?;
 
-    let mut global_verdict = Verdict::Accepted;
-
-    let mut testcase_results = Vec::<TestcaseResult>::new();
-
-    for testcase in &evaluation.testcases {
-        if global_verdict != Verdict::Accepted && !matches!(global_verdict, Verdict::Custom(_)) {
-            testcase_results.push(TestcaseResult {
-                id: testcase.id,
-                verdict: Verdict::Skipped,
-                memory: 0,
-                time: 0,
-                error: None,
-            });
-            continue;
-        }
-
-        let result = evaluate_with_testcase(&evaluation.output, &checker, testcase);
-        let result_verdict = result.verdict.clone();
-
-        testcase_results.push(result);
-
-        global_verdict = result_verdict;
-    }
+    let result = evaluate_with_testcase(&evaluation.output, &checker, &evaluation.testcase);
 
     Ok(SuccessfulEvaluation {
-        verdict: global_verdict,
+        verdict: result.verdict.clone(),
         max_memory: 0,
         max_time: 0,
-        testcases: testcase_results,
+        testcases: vec![result],
     })
 }

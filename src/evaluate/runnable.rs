@@ -1,13 +1,9 @@
-use crate::isolate::{wrap_isolate, IsolateError};
+use crate::isolate::{IsolateError, IsolatedProcess};
 use std::path::PathBuf;
-use std::process::Child;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ProcessRunError {
-    #[error("IO Error: {0}")]
-    IOError(#[from] std::io::Error),
-
     #[error("Isolate error: {0}")]
     IsolateError(#[from] IsolateError),
 }
@@ -31,20 +27,22 @@ pub enum RunnableProcess {
 }
 
 impl RunnableProcess {
-    pub fn run(&self, stdin: &[u8]) -> Result<Child, ProcessRunError> {
-        Ok(match self {
+    pub fn run(&self, stdin: &[u8]) -> Result<std::process::Output, ProcessRunError> {
+        let mut process = match self {
             RunnableProcess::Compiled(CompiledProcessData {
                 work_dir,
                 executable_name,
-            }) => wrap_isolate(work_dir, (executable_name, &[]), false, None, stdin)?.spawn()?,
-            RunnableProcess::Python(PythonProcessData { work_dir, code }) => wrap_isolate(
+            }) => IsolatedProcess::new(work_dir, (executable_name, &[]), false, None)?,
+            RunnableProcess::Python(PythonProcessData { work_dir, code }) => IsolatedProcess::new(
                 work_dir,
                 ("/usr/bin/python3", &["-c".to_string(), code.clone()]),
                 true,
                 None,
-                stdin,
-            )?
-            .spawn()?,
-        })
+            )?,
+        };
+
+        process.spawn(stdin)?;
+
+        Ok(process.wait_for_output()?)
     }
 }

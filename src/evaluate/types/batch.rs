@@ -12,17 +12,7 @@ fn evaluate_with_testcase(
     // TODO: measure time and memory
     let running_process = process.run(testcase.input.as_bytes());
 
-    let Ok(running_process) = running_process else {
-        return TestcaseResult {
-            id: testcase.id,
-            verdict: Verdict::JudgingError,
-            memory: 0,
-            time: 0,
-            error: None,
-        };
-    };
-
-    let Ok(output) = running_process.wait_with_output() else {
+    let Ok(output) = running_process else {
         return TestcaseResult {
             id: testcase.id,
             verdict: Verdict::JudgingError,

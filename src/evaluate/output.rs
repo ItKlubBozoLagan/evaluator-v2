@@ -48,9 +48,7 @@ impl OutputChecker {
                 input.push('\n');
                 input.push_str(&separator);
 
-                let running = process.run(input.as_bytes())?;
-
-                let output = running.wait_with_output()?;
+                let output = process.run(input.as_bytes())?;
 
                 if !output.status.success() {
                     todo!("throw error")

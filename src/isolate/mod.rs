@@ -1,57 +1,131 @@
+pub mod meta;
+
 use crate::util::random_bytes;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+
+// 1 MiB = 256 blocks if block is 4096 bytes
+// TODO: dynamic
+const MAX_DISK_QUOTA_BLOCKS: u32 = 25600;
 
 #[derive(thiserror::Error, Debug)]
 pub enum IsolateError {
+    #[error("IO Error: {0}")]
+    IOError(#[from] std::io::Error),
+
     #[error("Failed to write stdin into file: {0}")]
     StdinIntoFileError(String),
+
+    #[error("Process is already running")]
+    ProcessRunning,
+
+    #[error("Process is not running")]
+    ProcessNotRunning,
 }
 
-// NOTE: maybe use tokio::process::Command if issues arise
-pub fn wrap_isolate(
-    work_dir: &Path,
-    command: (&str, &[String]),
-    is_global_binary: bool,
-    extra_dirs: Option<&[String]>,
-    stdin: &[u8],
-) -> Result<Command, IsolateError> {
-    write_stdin_to_file(work_dir, stdin)?;
-    let stdin_file_name = format!("{}/.stdin", work_dir.display());
+pub struct IsolatedProcess {
+    box_id: u8,
 
-    let mut isolate_command = Command::new("/usr/bin/isolate");
-    if let Some(dirs) = extra_dirs {
-        for dir in dirs {
-            isolate_command.arg("--dir").arg(dir);
+    work_dir: PathBuf,
+    command: Command,
+
+    running_child: Option<Child>,
+}
+
+impl IsolatedProcess {
+    // NOTE: maybe use tokio::process::Command if issues arise
+    pub fn new(
+        work_dir: &Path,
+        command: (&str, &[String]),
+        is_global_binary: bool,
+        extra_dirs: Option<&[String]>,
+    ) -> Result<Self, IsolateError> {
+        let mut isolate_command = Command::new("/usr/bin/isolate");
+        if let Some(dirs) = extra_dirs {
+            for dir in dirs {
+                isolate_command.arg("--dir").arg(dir);
+            }
         }
+        isolate_command.arg("--dir");
+        isolate_command.arg(format!("{}:rw", work_dir.display()));
+
+        isolate_command.arg("-E");
+        isolate_command.arg("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+
+        isolate_command.arg("--processes");
+
+        isolate_command.arg("--run");
+        isolate_command.arg("--");
+        if is_global_binary {
+            isolate_command.arg(command.0);
+        } else {
+            isolate_command.arg(format!("{}/{}", work_dir.display(), command.0));
+        }
+        isolate_command.args(command.1);
+
+        isolate_command.stdout(Stdio::piped());
+        isolate_command.stderr(Stdio::piped());
+
+        dbg!(&isolate_command);
+        Ok(IsolatedProcess {
+            // TODO: parallel isolate
+            box_id: 0,
+            work_dir: work_dir.to_path_buf(),
+            command: isolate_command,
+            running_child: None,
+        })
     }
-    isolate_command.arg("--dir");
-    isolate_command.arg(format!("{}:rw", work_dir.display()));
 
-    isolate_command.arg("-E");
-    isolate_command.arg("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+    pub fn spawn(&mut self, stdin: &[u8]) -> Result<(), IsolateError> {
+        self.spawn_init()?;
 
-    isolate_command.arg("--stdin");
-    isolate_command.arg(stdin_file_name);
+        if self.running_child.is_some() {
+            return Err(IsolateError::ProcessRunning);
+        }
 
-    isolate_command.arg("--processes");
+        write_stdin_to_file(&self.work_dir, stdin)?;
+        let stdin_file_name = format!("{}/.stdin", &self.work_dir.display());
 
-    isolate_command.arg("--run");
-    isolate_command.arg("--");
-    if is_global_binary {
-        isolate_command.arg(command.0);
-    } else {
-        isolate_command.arg(format!("{}/{}", work_dir.display(), command.0));
+        self.command.arg("--stdin");
+        self.command.arg(stdin_file_name);
+
+        let child = self.command.spawn()?;
+        self.running_child = Some(child);
+
+        Ok(())
     }
-    isolate_command.args(command.1);
 
-    isolate_command.stdout(Stdio::piped());
-    isolate_command.stderr(Stdio::piped());
+    fn spawn_init(&mut self) -> Result<(), IsolateError> {
+        let mut isolate_command = Command::new("/usr/bin/isolate");
+        isolate_command.arg("--box-id");
+        isolate_command.arg(format!("{}", self.box_id));
+        isolate_command.arg("--quota");
+        isolate_command.arg(format!("{}", MAX_DISK_QUOTA_BLOCKS));
+        isolate_command.arg("--init");
+        Ok(isolate_command.spawn().map(|_| ())?)
+    }
 
-    dbg!(&isolate_command);
-    Ok(isolate_command)
+    fn spawn_cleanup(&mut self) -> Result<(), IsolateError> {
+        let mut isolate_command = Command::new("/usr/bin/isolate");
+        isolate_command.arg("--box-id");
+        isolate_command.arg(format!("{}", self.box_id));
+        isolate_command.arg("--cleanup");
+        Ok(isolate_command.spawn().map(|_| ())?)
+    }
+
+    pub fn wait_for_output(&mut self) -> Result<std::process::Output, IsolateError> {
+        let child = self
+            .running_child
+            .take()
+            .ok_or_else(|| IsolateError::ProcessNotRunning)?;
+        let output = child.wait_with_output()?;
+
+        self.spawn_cleanup()?;
+        self.running_child = None;
+        Ok(output)
+    }
 }
 
 // TODO: extract into separate file

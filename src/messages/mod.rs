@@ -3,9 +3,7 @@ use std::fmt::{Display, Formatter};
 pub mod handler;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub enum ProblemType {
-
-}
+pub enum ProblemType {}
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum EvaluationLanguage {
@@ -27,7 +25,7 @@ impl Display for EvaluationLanguage {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CheckerData {
     pub script: String,
-    pub language: EvaluationLanguage
+    pub language: EvaluationLanguage,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -56,7 +54,7 @@ pub struct InteractiveEvaluation {
 pub struct OutputOnlyEvaluation {
     pub id: u64,
     pub output: String,
-    pub testcases: Vec<Testcase>,
+    pub testcase: Testcase,
     pub checker: Option<CheckerData>,
 }
 
