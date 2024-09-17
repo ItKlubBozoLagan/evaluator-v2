@@ -1,8 +1,10 @@
 use crate::messages::EvaluationLanguage;
 
 impl EvaluationLanguage {
-    // Get compiler command and arguments based on language
-    pub fn get_compiler_command(&self, out_file: String) -> Option<(&'static str, Vec<String>)> {
+    // get compiler command and arguments based on language
+    pub fn get_compiler_command(&self, out_file: &str) -> Option<(&'static str, Vec<String>)> {
+        let out_file = out_file.to_string();
+
         type E = EvaluationLanguage;
         match self {
             E::C => Some((

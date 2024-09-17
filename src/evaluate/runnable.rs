@@ -1,5 +1,4 @@
-use crate::isolate::{IsolateError, IsolatedProcess};
-use std::path::PathBuf;
+use crate::isolate::{CommandMeta, IsolateError, IsolatedProcess};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -10,13 +9,11 @@ pub enum ProcessRunError {
 
 #[derive(Debug)]
 pub struct CompiledProcessData {
-    pub work_dir: PathBuf,
     pub executable_name: String,
 }
 
 #[derive(Debug)]
 pub struct PythonProcessData {
-    pub work_dir: PathBuf,
     pub code: String,
 }
 
@@ -29,20 +26,32 @@ pub enum RunnableProcess {
 impl RunnableProcess {
     pub fn run(&self, stdin: &[u8]) -> Result<std::process::Output, ProcessRunError> {
         let mut process = match self {
-            RunnableProcess::Compiled(CompiledProcessData {
-                work_dir,
-                executable_name,
-            }) => IsolatedProcess::new(work_dir, (executable_name, &[]), false, None)?,
-            RunnableProcess::Python(PythonProcessData { work_dir, code }) => IsolatedProcess::new(
-                work_dir,
-                ("/usr/bin/python3", &["-c".to_string(), code.clone()]),
-                true,
-                None,
+            RunnableProcess::Compiled(CompiledProcessData { executable_name }) => {
+                IsolatedProcess::new(
+                    0,
+                    CommandMeta {
+                        executable: executable_name.to_string(),
+                        args: Vec::new(),
+                        in_path: false,
+                    },
+                )?
+            }
+            RunnableProcess::Python(PythonProcessData { code }) => IsolatedProcess::new(
+                0,
+                CommandMeta {
+                    executable: "/usr/bin/python3".to_string(),
+                    args: vec!["-c".to_string(), code.clone()],
+                    in_path: true,
+                },
             )?,
         };
 
         process.spawn(stdin)?;
 
-        Ok(process.wait_for_output()?)
+        let output = process.wait_for_output()?;
+
+        process.cleanup_and_reset()?;
+
+        Ok(output)
     }
 }
