@@ -5,9 +5,8 @@ pub mod queue_handler;
 mod runnable;
 mod types;
 
-use crate::evaluate::runnable::RunnableProcess;
-use crate::isolate::IsolateError;
-use crate::messages::{Evaluation, EvaluationLanguage};
+use crate::evaluate::compilation::CompilationError;
+use crate::messages::Evaluation;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -48,26 +47,6 @@ pub enum Verdict {
     JudgingError,
     SystemError,
     Skipped,
-}
-
-#[derive(Debug)]
-pub struct CompilationResult {
-    process: RunnableProcess,
-}
-
-#[derive(Error, Debug)]
-pub enum CompilationError {
-    #[error("IO Error: {0}")]
-    IoError(#[from] std::io::Error),
-
-    #[error("Failed to compile: {0}")]
-    CompilationError(String),
-
-    #[error("Tried to compile a non-compiled language: ${0}")]
-    UnsupportedLanguage(EvaluationLanguage),
-
-    #[error("Isolate error: {0}")]
-    IsolateError(#[from] IsolateError),
 }
 
 // TODO: wrap everything in isolate

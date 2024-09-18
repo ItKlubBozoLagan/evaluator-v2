@@ -1,6 +1,5 @@
-use crate::evaluate::compilation::process_compilation;
+use crate::evaluate::compilation::{process_compilation, CompilationError};
 use crate::evaluate::runnable::RunnableProcess;
-use crate::evaluate::CompilationError;
 use crate::messages::{CheckerData, Testcase};
 use crate::util::random_bytes;
 
@@ -27,9 +26,6 @@ fn trim_every_line(input: &str) -> String {
 
 impl OutputChecker {
     pub fn check(&self, output: &str, testcase: &Testcase) -> anyhow::Result<CheckerResult> {
-        dbg!(&output);
-        dbg!(&testcase);
-
         match self {
             OutputChecker::Script(process) => {
                 let mut separator = String::from("[");
