@@ -8,7 +8,21 @@ pub enum ProcessStatus {
 
 #[derive(Debug, Clone)]
 pub struct ProcessMeta {
-    cg_mem_kb: u64,
-    status: ProcessStatus,
-    time: f64,
+    pub cg_mem_kb: u32,
+    pub status: Option<ProcessStatus>,
+    pub time_ms: u32,
+}
+
+impl TryFrom<&String> for ProcessStatus {
+    type Error = ();
+
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        match value as &str {
+            "RE" => Ok(ProcessStatus::RuntimeError),
+            "SG" => Ok(ProcessStatus::SignalExit),
+            "TO" => Ok(ProcessStatus::TimedOut),
+            "XX" => Ok(ProcessStatus::SandboxError),
+            _ => Err(()),
+        }
+    }
 }

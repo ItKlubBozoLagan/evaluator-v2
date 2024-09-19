@@ -1,5 +1,7 @@
 pub mod meta;
 
+use crate::isolate::meta::{ProcessMeta, ProcessStatus};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -20,7 +22,7 @@ pub enum IsolateError {
     #[error("Failed to write stdin into file: {0}")]
     StdinIntoFileError(String),
 
-    #[error("Process is already running")]
+    #[error("Process is already/still running")]
     ProcessRunning,
 
     #[error("Process is not running")]
@@ -66,6 +68,9 @@ impl IsolatedProcess {
         isolate_command.arg("--stdin");
         isolate_command.arg("/box/.stdin");
 
+        isolate_command.arg("--meta");
+        isolate_command.arg(format!("/tmp/.meta-{}", execution_id));
+
         isolate_command.arg("--box-id");
         isolate_command.arg(format!("{}", execution_id));
 
@@ -110,8 +115,6 @@ impl IsolatedProcess {
                 .arg(format!("./{}", &self.command_meta.executable));
         }
         self.command.args(&self.command_meta.args);
-
-        dbg!(&self.command);
 
         let child = self.command.spawn()?;
 
@@ -183,6 +186,8 @@ impl IsolatedProcess {
 
         child.wait_with_output()?;
 
+        std::fs::remove_file(format!("/tmp/.meta-{}", self.box_id))?;
+
         self.running_child = None;
         Ok(())
     }
@@ -209,6 +214,50 @@ impl IsolatedProcess {
         std::fs::copy(in_file, path_in_box)?;
 
         Ok(())
+    }
+
+    pub fn load_meta(&self) -> Result<ProcessMeta, IsolateError> {
+        let Some(child) = &self.running_child else {
+            return Err(IsolateError::ProcessNotRunning);
+        };
+
+        // TODO: maybe replace with some state property
+        // child will be none if the output has been consumed somehow (i.e. process is finished)
+        if child.child.is_some() {
+            return Err(IsolateError::ProcessRunning);
+        };
+
+        let meta_file_content = std::fs::read_to_string(format!("/tmp/.meta-{}", self.box_id))?;
+
+        let meta = Self::parse_meta(&meta_file_content)?;
+
+        Ok(meta)
+    }
+
+    pub fn parse_meta(meta_content: &str) -> Result<ProcessMeta, IsolateError> {
+        let key_value: HashMap<String, String> = meta_content
+            .lines()
+            .map(|line| line.split(':').map(String::from).collect::<Vec<String>>())
+            .filter(|kv| kv.len() == 2)
+            .map(|kv| (kv[0].clone(), kv[1].clone()))
+            .collect();
+
+        let meta = ProcessMeta {
+            cg_mem_kb: key_value
+                .get("cg-mem")
+                .and_then(|val| val.parse::<u32>().ok())
+                .unwrap_or(0),
+            status: key_value
+                .get("status")
+                .and_then(|it| TryInto::<ProcessStatus>::try_into(it).ok()),
+            time_ms: key_value
+                .get("time")
+                .and_then(|val| val.parse::<f64>().ok())
+                .map(|val| (val * 1000.0) as u32)
+                .unwrap_or(0),
+        };
+
+        Ok(meta)
     }
 
     pub fn wait_for_output(&mut self) -> Result<std::process::Output, IsolateError> {

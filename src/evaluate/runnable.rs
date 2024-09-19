@@ -1,5 +1,7 @@
+use crate::isolate::meta::ProcessMeta;
 use crate::isolate::{CommandMeta, IsolateError, IsolatedProcess};
 use std::path::PathBuf;
+use std::process::Output;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -24,8 +26,14 @@ pub enum RunnableProcess {
     Python(PythonProcessData),
 }
 
+#[derive(Debug, Clone)]
+pub struct ProcessRunResult {
+    pub output: Output,
+    pub meta: ProcessMeta,
+}
+
 impl RunnableProcess {
-    pub fn run(&self, stdin: &[u8]) -> Result<std::process::Output, ProcessRunError> {
+    pub fn run(&self, stdin: &[u8]) -> Result<ProcessRunResult, ProcessRunError> {
         let mut process = match self {
             RunnableProcess::Compiled(CompiledProcessData { executable_path }) => {
                 let mut process = IsolatedProcess::new(
@@ -61,8 +69,10 @@ impl RunnableProcess {
 
         let output = process.wait_for_output()?;
 
+        let meta = process.load_meta()?;
+
         process.cleanup_and_reset()?;
 
-        Ok(output)
+        Ok(ProcessRunResult { output, meta })
     }
 }

@@ -1,6 +1,6 @@
 use crate::evaluate::compilation::process_compilation;
 use crate::evaluate::output::{CheckerResult, OutputChecker};
-use crate::evaluate::runnable::RunnableProcess;
+use crate::evaluate::runnable::{ProcessRunResult, RunnableProcess};
 use crate::evaluate::{EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict};
 use crate::messages::{BatchEvaluation, Testcase};
 
@@ -9,10 +9,9 @@ fn evaluate_with_testcase(
     checker: &OutputChecker,
     testcase: &Testcase,
 ) -> TestcaseResult {
-    // TODO: measure time and memory
     let running_process = process.run(testcase.input.as_bytes());
 
-    let Ok(output) = running_process else {
+    let Ok(ProcessRunResult { output, meta }) = running_process else {
         return TestcaseResult {
             id: testcase.id,
             verdict: Verdict::JudgingError,
@@ -26,8 +25,8 @@ fn evaluate_with_testcase(
         return TestcaseResult {
             id: testcase.id,
             verdict: Verdict::RuntimeError,
-            memory: 0,
-            time: 0,
+            memory: meta.cg_mem_kb,
+            time: meta.time_ms,
             error: Some(String::from_utf8_lossy(&output.stderr).to_string()),
         };
     }
@@ -53,8 +52,9 @@ fn evaluate_with_testcase(
     TestcaseResult {
         id: testcase.id,
         verdict,
-        memory: 0,
-        time: 0,
+        // TODO: backend most likely wants bytes
+        memory: meta.cg_mem_kb,
+        time: meta.time_ms,
         error: None,
     }
 }
@@ -90,8 +90,12 @@ pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, Ev
 
     Ok(SuccessfulEvaluation {
         verdict: global_verdict,
-        max_memory: 0,
-        max_time: 0,
+        max_memory: testcase_results
+            .iter()
+            .map(|it| it.memory)
+            .max()
+            .unwrap_or(0),
+        max_time: testcase_results.iter().map(|it| it.time).max().unwrap_or(0),
         testcases: testcase_results,
     })
 }
