@@ -36,13 +36,14 @@ async fn entrypoint() -> anyhow::Result<()> {
     let sample_evaluation = Evaluation::Batch(BatchEvaluation {
         id: 1,
         code: r#"
-a = "A" * 1148576
+a = []
 
-open("test.txt", "w").write(a)
+while True:
+    a += ["A"]
             "#
         .to_string(),
-        time_limit: 0,
-        memory_limit: 0,
+        time_limit: 5000,
+        memory_limit: 1 << 20,
         language: EvaluationLanguage::Python,
         checker: Some(CheckerData {
             script: r#"

@@ -1,5 +1,5 @@
 use crate::evaluate::runnable::{CompiledProcessData, PythonProcessData, RunnableProcess};
-use crate::isolate::{CommandMeta, IsolateError, IsolatedProcess};
+use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess};
 use crate::messages::EvaluationLanguage;
 use crate::util;
 use std::path::PathBuf;
@@ -56,6 +56,11 @@ fn compile(
             executable: compiler.to_string(),
             args,
             in_path: true,
+        },
+        // TODO: extract into variables
+        &IsolateLimits {
+            time_limit: 30.0,
+            memory_limit: 1 << 20, // 1 GiB
         },
     )?;
 

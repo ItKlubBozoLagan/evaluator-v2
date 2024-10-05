@@ -14,6 +14,11 @@ const ISOLATE_BINARY_LOCATION: &str = "/usr/local/bin/isolate";
 const MAX_DISK_QUOTA_BLOCKS: u32 = 25600;
 const MAX_DISK_QUOTA_INODES: u32 = 10;
 
+const MAX_WALL_TIME_LIMIT_SECONDS: f32 = 30.0;
+
+// https://github.com/ioi/isolate/issues/95
+const EXTRA_TIME_PERCENT: u8 = 125;
+
 #[derive(thiserror::Error, Debug)]
 pub enum IsolateError {
     #[error("IO Error: {0}")]
@@ -39,6 +44,12 @@ pub struct CommandMeta {
     pub in_path: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct IsolateLimits {
+    pub time_limit: f32,
+    pub memory_limit: u32,
+}
+
 pub struct IsolateRunningChild {
     // child can be taken
     child: Option<Child>,
@@ -56,7 +67,11 @@ pub struct IsolatedProcess {
 
 impl IsolatedProcess {
     // NOTE: maybe use tokio::process::Command if issues arise
-    pub fn new(execution_id: u8, command_meta: &CommandMeta) -> Result<Self, IsolateError> {
+    pub fn new(
+        execution_id: u8,
+        command_meta: &CommandMeta,
+        limits: &IsolateLimits,
+    ) -> Result<Self, IsolateError> {
         let mut isolate_command = Command::new(ISOLATE_BINARY_LOCATION);
 
         isolate_command.arg("-E");
@@ -67,6 +82,23 @@ impl IsolatedProcess {
 
         isolate_command.arg("--stdin");
         isolate_command.arg("/box/.stdin");
+
+        isolate_command.arg("--wall-time");
+        isolate_command.arg(format!(
+            "{}",
+            MAX_WALL_TIME_LIMIT_SECONDS.min(limits.time_limit * 2.0)
+        ));
+
+        isolate_command.arg("--time");
+        isolate_command.arg(format!("{}", limits.time_limit));
+
+        let extra_time = limits.time_limit as f64 * (EXTRA_TIME_PERCENT as f64 / 100.0);
+
+        isolate_command.arg("--extra-time");
+        isolate_command.arg(format!("{:.2}", extra_time));
+
+        isolate_command.arg("--cg-mem");
+        isolate_command.arg(format!("{}", limits.memory_limit));
 
         isolate_command.arg("--meta");
         isolate_command.arg(format!("/tmp/.meta-{}", execution_id));
@@ -253,6 +285,10 @@ impl IsolatedProcess {
                 .get("time")
                 .and_then(|val| val.parse::<f64>().ok())
                 .map(|val| (val * 1000.0) as u32)
+                .unwrap_or(0),
+            exit_signal: key_value
+                .get("exitsig")
+                .and_then(|val| val.parse::<u16>().ok())
                 .unwrap_or(0),
         };
 

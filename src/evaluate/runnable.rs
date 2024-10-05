@@ -1,5 +1,5 @@
 use crate::isolate::meta::ProcessMeta;
-use crate::isolate::{CommandMeta, IsolateError, IsolatedProcess};
+use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess};
 use std::path::PathBuf;
 use std::process::Output;
 use thiserror::Error;
@@ -33,7 +33,11 @@ pub struct ProcessRunResult {
 }
 
 impl RunnableProcess {
-    pub fn run(&self, stdin: &[u8]) -> Result<ProcessRunResult, ProcessRunError> {
+    pub fn run(
+        &self,
+        stdin: &[u8],
+        limits: &IsolateLimits,
+    ) -> Result<ProcessRunResult, ProcessRunError> {
         let mut process = match self {
             RunnableProcess::Compiled(CompiledProcessData { executable_path }) => {
                 let mut process = IsolatedProcess::new(
@@ -43,6 +47,7 @@ impl RunnableProcess {
                         args: Vec::new(),
                         in_path: false,
                     },
+                    limits,
                 )?;
 
                 process.spawn_with_hooks(stdin, |isolated| {
@@ -59,6 +64,7 @@ impl RunnableProcess {
                         args: vec!["-c".to_string(), code.clone()],
                         in_path: true,
                     },
+                    limits,
                 )?;
 
                 process.spawn(stdin)?;

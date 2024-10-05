@@ -34,8 +34,8 @@ pub struct BatchEvaluation {
     pub code: String,
     pub language: EvaluationLanguage,
     pub testcases: Vec<Testcase>,
-    pub time_limit: u64,
-    pub memory_limit: u64,
+    pub time_limit: u32,
+    pub memory_limit: u32,
     pub checker: Option<CheckerData>,
 }
 
@@ -45,8 +45,8 @@ pub struct InteractiveEvaluation {
     pub code: String,
     pub language: EvaluationLanguage,
     pub testcases: Vec<Testcase>,
-    pub time_limit: u64,
-    pub memory_limit: u64,
+    pub time_limit: u32,
+    pub memory_limit: u32,
     pub checker: CheckerData,
 }
 

@@ -11,6 +11,7 @@ pub struct ProcessMeta {
     pub cg_mem_kb: u32,
     pub status: Option<ProcessStatus>,
     pub time_ms: u32,
+    pub exit_signal: u16,
 }
 
 impl TryFrom<&String> for ProcessStatus {

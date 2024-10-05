@@ -2,14 +2,17 @@ use crate::evaluate::compilation::process_compilation;
 use crate::evaluate::output::{CheckerResult, OutputChecker};
 use crate::evaluate::runnable::{ProcessRunResult, RunnableProcess};
 use crate::evaluate::{EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict};
+use crate::isolate::meta::ProcessStatus;
+use crate::isolate::IsolateLimits;
 use crate::messages::{BatchEvaluation, Testcase};
 
 fn evaluate_with_testcase(
     process: &RunnableProcess,
     checker: &OutputChecker,
     testcase: &Testcase,
+    limits: &IsolateLimits,
 ) -> TestcaseResult {
-    let running_process = process.run(testcase.input.as_bytes());
+    let running_process = process.run(testcase.input.as_bytes(), limits);
 
     let Ok(ProcessRunResult { output, meta }) = running_process else {
         return TestcaseResult {
@@ -22,9 +25,17 @@ fn evaluate_with_testcase(
     };
 
     if !output.status.success() {
+        let verdict = if let Some(ProcessStatus::TimedOut) = meta.status {
+            Verdict::TimeLimitExceeded
+        } else if meta.exit_signal == 9 {
+            Verdict::MemoryLimitExceeded
+        } else {
+            Verdict::RuntimeError
+        };
+
         return TestcaseResult {
             id: testcase.id,
-            verdict: Verdict::RuntimeError,
+            verdict,
             memory: meta.cg_mem_kb,
             time: meta.time_ms,
             error: Some(String::from_utf8_lossy(&output.stderr).to_string()),
@@ -68,6 +79,11 @@ pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, Ev
 
     let mut testcase_results = Vec::<TestcaseResult>::new();
 
+    let limits = IsolateLimits {
+        time_limit: evaluation.time_limit as f32 / 1000.0,
+        memory_limit: evaluation.memory_limit + 1,
+    };
+
     for testcase in &evaluation.testcases {
         if global_verdict != Verdict::Accepted && !matches!(global_verdict, Verdict::Custom(_)) {
             testcase_results.push(TestcaseResult {
@@ -80,7 +96,8 @@ pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, Ev
             continue;
         }
 
-        let result = evaluate_with_testcase(&compilation_result.process, &checker, testcase);
+        let result =
+            evaluate_with_testcase(&compilation_result.process, &checker, testcase, &limits);
         let result_verdict = result.verdict.clone();
 
         testcase_results.push(result);

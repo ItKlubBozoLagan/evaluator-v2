@@ -1,5 +1,6 @@
 use crate::evaluate::compilation::{process_compilation, CompilationError};
 use crate::evaluate::runnable::RunnableProcess;
+use crate::isolate::IsolateLimits;
 use crate::messages::{CheckerData, Testcase};
 use crate::util::random_bytes;
 
@@ -44,7 +45,16 @@ impl OutputChecker {
                 input.push('\n');
                 input.push_str(&separator);
 
-                let output = process.run(input.as_bytes())?.output;
+                let output = process
+                    .run(
+                        input.as_bytes(),
+                        // TODO: extract into variables
+                        &IsolateLimits {
+                            time_limit: 30.0,
+                            memory_limit: 1 << 20, // 1 GiB
+                        },
+                    )?
+                    .output;
 
                 if !output.status.success() {
                     todo!("throw error")
