@@ -136,12 +136,11 @@ impl IsolatedProcess {
         isolate_command.arg("--box-id");
         isolate_command.arg(format!("{}", self.box_id));
 
-        // TODO:
-        // isolate_command.arg("--quota");
-        // isolate_command.arg(format!(
-        //     "{},{}",
-        //     MAX_DISK_QUOTA_BLOCKS, MAX_DISK_QUOTA_INODES
-        // ));
+        isolate_command.arg("--quota");
+        isolate_command.arg(format!(
+            "{},{}",
+            MAX_DISK_QUOTA_BLOCKS, MAX_DISK_QUOTA_INODES
+        ));
 
         isolate_command.arg("--cg");
 
