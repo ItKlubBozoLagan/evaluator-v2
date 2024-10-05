@@ -40,6 +40,7 @@ pub fn evaluate(
     let result = evaluate_with_testcase(&evaluation.output, &checker, &evaluation.testcase);
 
     Ok(SuccessfulEvaluation {
+        evaluation_id: evaluation.id,
         verdict: result.verdict.clone(),
         max_memory: 0,
         max_time: 0,

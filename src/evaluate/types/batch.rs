@@ -17,7 +17,7 @@ fn evaluate_with_testcase(
     let Ok(ProcessRunResult { output, meta }) = running_process else {
         return TestcaseResult {
             id: testcase.id,
-            verdict: Verdict::JudgingError,
+            verdict: Verdict::SystemError,
             memory: 0,
             time: 0,
             error: None,
@@ -44,14 +44,17 @@ fn evaluate_with_testcase(
 
     let output_str = String::from_utf8_lossy(&output.stdout).to_string();
 
-    let Ok(check_result) = checker.check(&output_str, testcase) else {
-        return TestcaseResult {
-            id: testcase.id,
-            verdict: Verdict::JudgingError,
-            memory: 0,
-            time: 0,
-            error: None,
-        };
+    let check_result = match checker.check(&output_str, testcase) {
+        Ok(result) => result,
+        Err(err) => {
+            return TestcaseResult {
+                id: testcase.id,
+                verdict: err.into(),
+                memory: 0,
+                time: 0,
+                error: None,
+            }
+        }
     };
 
     let verdict = match check_result {
@@ -106,6 +109,7 @@ pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, Ev
     }
 
     Ok(SuccessfulEvaluation {
+        evaluation_id: evaluation.id,
         verdict: global_verdict,
         max_memory: testcase_results
             .iter()

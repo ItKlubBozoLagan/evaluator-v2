@@ -13,11 +13,11 @@ pub enum MessageHandlerError {
 
 pub async fn handle_messages(
     state: Arc<AppState>,
-    connection: &mut ConnectionManager,
+    mut connection: ConnectionManager,
     channel: tokio::sync::broadcast::Sender<Message>,
 ) {
     loop {
-        let msg = do_handle_message(state.clone(), connection).await;
+        let msg = do_handle_message(state.clone(), &mut connection).await;
 
         let message = match msg {
             Err(err) => {

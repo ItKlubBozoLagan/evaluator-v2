@@ -7,6 +7,7 @@ mod types;
 
 use crate::evaluate::compilation::CompilationError;
 use crate::messages::Evaluation;
+use serde::Serialize;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -18,15 +19,16 @@ pub enum EvaluationError {
     CompilationError(#[from] CompilationError),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct SuccessfulEvaluation {
+    evaluation_id: u64,
     verdict: Verdict,
     max_time: u32,
     max_memory: u32,
     testcases: Vec<TestcaseResult>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct TestcaseResult {
     id: u64,
     verdict: Verdict,
@@ -35,7 +37,7 @@ pub struct TestcaseResult {
     error: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Verdict {
     Accepted,
     WrongAnswer,
@@ -43,7 +45,6 @@ pub enum Verdict {
     TimeLimitExceeded,
     MemoryLimitExceeded,
     RuntimeError,
-    CompilationError,
     JudgingError,
     SystemError,
     Skipped,

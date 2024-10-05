@@ -1,8 +1,33 @@
 use crate::evaluate::compilation::{process_compilation, CompilationError};
-use crate::evaluate::runnable::RunnableProcess;
+use crate::evaluate::runnable::{ProcessRunError, RunnableProcess};
+use crate::evaluate::Verdict;
 use crate::isolate::IsolateLimits;
 use crate::messages::{CheckerData, Testcase};
 use crate::util::random_bytes;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum CheckerError {
+    #[error("Process run error: {0}")]
+    ProcessError(#[from] ProcessRunError),
+
+    // time limit, memory limit, etc.
+    #[error("Checker failed")]
+    CheckerFailed,
+
+    // checker returned invalid verdict
+    #[error("Invalid checker")]
+    InvalidChecker,
+}
+
+impl From<CheckerError> for Verdict {
+    fn from(value: CheckerError) -> Self {
+        match value {
+            CheckerError::ProcessError(_) => Verdict::SystemError,
+            CheckerError::CheckerFailed | CheckerError::InvalidChecker => Verdict::JudgingError,
+        }
+    }
+}
 
 pub enum OutputChecker {
     Script(RunnableProcess),
@@ -26,7 +51,7 @@ fn trim_every_line(input: &str) -> String {
 }
 
 impl OutputChecker {
-    pub fn check(&self, output: &str, testcase: &Testcase) -> anyhow::Result<CheckerResult> {
+    pub fn check(&self, output: &str, testcase: &Testcase) -> Result<CheckerResult, CheckerError> {
         match self {
             OutputChecker::Script(process) => {
                 let mut separator = String::from("[");
@@ -57,7 +82,7 @@ impl OutputChecker {
                     .output;
 
                 if !output.status.success() {
-                    todo!("throw error")
+                    return Err(CheckerError::CheckerFailed);
                 }
 
                 let text_output = String::from_utf8_lossy(&output.stdout);
@@ -79,8 +104,7 @@ impl OutputChecker {
                     return Ok(CheckerResult::WrongAnswer);
                 }
 
-                // TODO: gracefully handle
-                unreachable!();
+                Err(CheckerError::InvalidChecker)
             }
             OutputChecker::Raw => {
                 if trim_every_line(output) == trim_every_line(&testcase.output) {

@@ -7,7 +7,6 @@ use std::sync::Arc;
 use ::tracing::info;
 
 mod messages;
-mod redis;
 mod state;
 mod tracing;
 
@@ -92,18 +91,20 @@ print(f"custom:{subOut}" if out.strip() == subOut.strip() else "WA")
         // max_evaluations: 1
     });
 
-    let mut connection = redis::get_connection("redis://localhost:6379").await?;
+    let client = redis::Client::open("redis://localhost:6379")?;
 
     let (tx, _) = tokio::sync::broadcast::channel::<Message>(16);
 
     let evaluation_handler = tokio::spawn(evaluate::queue_handler::handle(
         state.clone(),
         tx.subscribe(),
+        client.get_connection_manager().await?,
     ));
 
     info!("Started");
 
-    messages::handler::handle_messages(state.clone(), &mut connection, tx).await;
+    messages::handler::handle_messages(state.clone(), client.get_connection_manager().await?, tx)
+        .await;
 
     let _ = evaluation_handler.await;
 
