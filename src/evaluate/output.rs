@@ -1,7 +1,7 @@
 use crate::evaluate::compilation::{process_compilation, CompilationError};
 use crate::evaluate::runnable::{ProcessRunError, RunnableProcess};
 use crate::evaluate::Verdict;
-use crate::isolate::IsolateLimits;
+use crate::isolate::{IsolateLimits, ProcessInput};
 use crate::messages::{CheckerData, Testcase};
 use crate::util::random_bytes;
 use thiserror::Error;
@@ -20,8 +20,8 @@ pub enum CheckerError {
     InvalidChecker,
 }
 
-impl From<CheckerError> for Verdict {
-    fn from(value: CheckerError) -> Self {
+impl From<&CheckerError> for Verdict {
+    fn from(value: &CheckerError) -> Self {
         match value {
             CheckerError::ProcessError(_) => Verdict::SystemError,
             CheckerError::CheckerFailed | CheckerError::InvalidChecker => Verdict::JudgingError,
@@ -72,12 +72,13 @@ impl OutputChecker {
 
                 let output = process
                     .run(
-                        input.as_bytes(),
+                        ProcessInput::StdIn(input.as_bytes().to_vec()),
                         // TODO: extract into variables
                         &IsolateLimits {
                             time_limit: 30.0,
                             memory_limit: 1 << 20, // 1 GiB
                         },
+                        None,
                     )?
                     .output;
 
@@ -88,23 +89,8 @@ impl OutputChecker {
                 let text_output = String::from_utf8_lossy(&output.stdout);
                 let text_output = text_output.trim();
 
-                if text_output.starts_with("custom:") {
-                    let (_, message) = text_output.split_once(':').unwrap();
-
-                    return Ok(CheckerResult::Custom(message.to_string()));
-                }
-
-                let text_output = text_output.to_ascii_lowercase();
-
-                if text_output == "ac" || text_output == "accepted" {
-                    return Ok(CheckerResult::Accepted);
-                }
-
-                if text_output == "wa" || text_output == "wrong_answer" {
-                    return Ok(CheckerResult::WrongAnswer);
-                }
-
-                Err(CheckerError::InvalidChecker)
+                // FIXME: legacy
+                text_output.try_into()
             }
             OutputChecker::Raw => {
                 if trim_every_line(output) == trim_every_line(&testcase.output) {
@@ -129,5 +115,29 @@ impl TryFrom<&Option<CheckerData>> for OutputChecker {
             }
             _ => Ok(OutputChecker::Raw),
         }
+    }
+}
+
+impl TryFrom<&str> for CheckerResult {
+    type Error = CheckerError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.starts_with("custom:") {
+            let (_, message) = value.split_once(':').unwrap();
+
+            return Ok(CheckerResult::Custom(message.to_string()));
+        }
+
+        let text_output = value.to_ascii_lowercase();
+
+        if text_output == "ac" || text_output == "accepted" {
+            return Ok(CheckerResult::Accepted);
+        }
+
+        if text_output == "wa" || text_output == "wrong_answer" {
+            return Ok(CheckerResult::WrongAnswer);
+        }
+
+        Err(CheckerError::InvalidChecker)
     }
 }

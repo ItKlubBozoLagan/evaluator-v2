@@ -1,5 +1,5 @@
 use crate::messages::{
-    BatchEvaluation, CheckerData, Evaluation, EvaluationLanguage, Message, Testcase,
+    CheckerData, Evaluation, EvaluationLanguage, InteractiveEvaluation, Message, Testcase,
 };
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
@@ -32,52 +32,68 @@ fn main() -> anyhow::Result<()> {
 async fn entrypoint() -> anyhow::Result<()> {
     info!("Starting...");
 
-    let sample_evaluation = Evaluation::Batch(BatchEvaluation {
+    let sample_evaluation = Evaluation::Interactive(InteractiveEvaluation {
         id: 1,
         code: r#"
-a = []
-
+i = 0
 while True:
-    a += ["A"]
+    print("? " + str(i))
+    ans = input()
+    if ans == "Y":
+        print("! " + str(i))
+        break
+    i += 1
             "#
         .to_string(),
-        time_limit: 5000,
-        memory_limit: 1 << 20,
+        time_limit: 10000,
+        memory_limit: 10240,
         language: EvaluationLanguage::Python,
-        checker: Some(CheckerData {
+        checker: CheckerData {
             script: r#"
-def read_until(separator):
-    out = ""
+secret = int(input())
+
+meta = open("interactor_meta.out", "w")
+
+try:
     while True:
         line = input()
-        if line == separator:
-            return out
-        out += " " + line.strip()
+        a = line.split(" ")
+        if a[0] == "?":
+            if int(a[1]) >= secret:
+                print("Y")
+            else:
+                print("N")
+        else:
+            meta.write("AC" if int(a[1]) == secret else "WA")
+            break
+except:
+    meta.write("WA")
 
-while True:
-    separator = input()
-    if len(separator.strip()) > 0:
-        break
-
-read_until(separator)
-out = read_until(separator)
-subOut = read_until(separator)
-
-print(f"custom:{subOut}" if out.strip() == subOut.strip() else "WA")
+meta.close()
             "#
             .to_string(),
             language: EvaluationLanguage::Python,
-        }),
+        },
         testcases: vec![
             Testcase {
                 id: 1,
-                input: "-1".to_string(),
-                output: "1".to_string(),
+                input: "10".to_string(),
+                output: "".to_string(),
             },
             Testcase {
                 id: 2,
-                input: "10".to_string(),
-                output: "89".to_string(),
+                input: "986".to_string(),
+                output: "".to_string(),
+            },
+            Testcase {
+                id: 3,
+                input: "1000".to_string(),
+                output: "".to_string(),
+            },
+            Testcase {
+                id: 4,
+                input: "1000000".to_string(),
+                output: "".to_string(),
             },
         ],
     });

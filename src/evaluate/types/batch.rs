@@ -3,7 +3,7 @@ use crate::evaluate::output::{CheckerResult, OutputChecker};
 use crate::evaluate::runnable::{ProcessRunResult, RunnableProcess};
 use crate::evaluate::{EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict};
 use crate::isolate::meta::ProcessStatus;
-use crate::isolate::IsolateLimits;
+use crate::isolate::{IsolateLimits, ProcessInput};
 use crate::messages::{BatchEvaluation, Testcase};
 
 fn evaluate_with_testcase(
@@ -12,7 +12,11 @@ fn evaluate_with_testcase(
     testcase: &Testcase,
     limits: &IsolateLimits,
 ) -> TestcaseResult {
-    let running_process = process.run(testcase.input.as_bytes(), limits);
+    let running_process = process.run(
+        ProcessInput::StdIn(testcase.input.as_bytes().to_vec()),
+        limits,
+        None,
+    );
 
     let Ok(ProcessRunResult { output, meta }) = running_process else {
         return TestcaseResult {
@@ -24,10 +28,11 @@ fn evaluate_with_testcase(
         };
     };
 
+    // FIXME: repeated
     if !output.status.success() {
         let verdict = if let Some(ProcessStatus::TimedOut) = meta.status {
             Verdict::TimeLimitExceeded
-        } else if meta.exit_signal == 9 {
+        } else if meta.cg_oom_killed {
             Verdict::MemoryLimitExceeded
         } else {
             Verdict::RuntimeError
@@ -49,10 +54,10 @@ fn evaluate_with_testcase(
         Err(err) => {
             return TestcaseResult {
                 id: testcase.id,
-                verdict: err.into(),
+                verdict: (&err).into(),
                 memory: 0,
                 time: 0,
-                error: None,
+                error: Some(err.to_string()),
             }
         }
     };
@@ -78,14 +83,14 @@ pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, Ev
 
     let checker = (&evaluation.checker).try_into()?;
 
+    let limits = IsolateLimits {
+        time_limit: evaluation.time_limit as f32 / 1000.0,
+        memory_limit: evaluation.memory_limit,
+    };
+
     let mut global_verdict = Verdict::Accepted;
 
     let mut testcase_results = Vec::<TestcaseResult>::new();
-
-    let limits = IsolateLimits {
-        time_limit: evaluation.time_limit as f32 / 1000.0,
-        memory_limit: evaluation.memory_limit + 1,
-    };
 
     for testcase in &evaluation.testcases {
         if global_verdict != Verdict::Accepted && !matches!(global_verdict, Verdict::Custom(_)) {

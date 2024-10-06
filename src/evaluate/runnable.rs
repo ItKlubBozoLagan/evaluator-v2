@@ -1,5 +1,6 @@
 use crate::isolate::meta::ProcessMeta;
-use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess};
+use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess, ProcessInput};
+use std::os::fd::OwnedFd;
 use std::path::PathBuf;
 use std::process::Output;
 use thiserror::Error;
@@ -35,43 +36,11 @@ pub struct ProcessRunResult {
 impl RunnableProcess {
     pub fn run(
         &self,
-        stdin: &[u8],
+        input: ProcessInput,
         limits: &IsolateLimits,
+        output_pipe: Option<OwnedFd>,
     ) -> Result<ProcessRunResult, ProcessRunError> {
-        let mut process = match self {
-            RunnableProcess::Compiled(CompiledProcessData { executable_path }) => {
-                let mut process = IsolatedProcess::new(
-                    0,
-                    &CommandMeta {
-                        executable: "program".to_string(),
-                        args: Vec::new(),
-                        in_path: false,
-                    },
-                    limits,
-                )?;
-
-                process.spawn_with_hooks(stdin, |isolated| {
-                    isolated.copy_in_box(executable_path, "program")
-                })?;
-
-                process
-            }
-            RunnableProcess::Python(PythonProcessData { code }) => {
-                let mut process = IsolatedProcess::new(
-                    0,
-                    &CommandMeta {
-                        executable: "/usr/bin/python3".to_string(),
-                        args: vec!["-c".to_string(), code.clone()],
-                        in_path: true,
-                    },
-                    limits,
-                )?;
-
-                process.spawn(stdin)?;
-
-                process
-            }
-        };
+        let mut process = self.just_run(0, input, limits, output_pipe)?;
 
         let output = process.wait_for_output()?;
 
@@ -80,5 +49,55 @@ impl RunnableProcess {
         process.cleanup_and_reset()?;
 
         Ok(ProcessRunResult { output, meta })
+    }
+
+    pub fn just_run(
+        &self,
+        exec_id: u8,
+        input: ProcessInput,
+        limits: &IsolateLimits,
+        output_pipe: Option<OwnedFd>,
+    ) -> Result<IsolatedProcess, ProcessRunError> {
+        let mut process = self.as_isolated(exec_id, limits)?;
+
+        match self {
+            RunnableProcess::Compiled(CompiledProcessData { executable_path }) => process
+                .spawn_with_hooks(input, output_pipe, |isolated| {
+                    isolated.copy_in_box(executable_path, "program")
+                })?,
+            RunnableProcess::Python(_) => process.spawn(input, output_pipe)?,
+        };
+
+        Ok(process)
+    }
+
+    // FIXME: execution_id
+    pub fn as_isolated(
+        &self,
+        exec_id: u8,
+        limits: &IsolateLimits,
+    ) -> Result<IsolatedProcess, IsolateError> {
+        let process = match self {
+            RunnableProcess::Compiled(_) => IsolatedProcess::new(
+                exec_id,
+                &CommandMeta {
+                    executable: "program".to_string(),
+                    args: Vec::new(),
+                    in_path: false,
+                },
+                limits,
+            )?,
+            RunnableProcess::Python(PythonProcessData { code }) => IsolatedProcess::new(
+                exec_id,
+                &CommandMeta {
+                    executable: "/usr/bin/python3".to_string(),
+                    args: vec!["-c".to_string(), code.clone()],
+                    in_path: true,
+                },
+                limits,
+            )?,
+        };
+
+        Ok(process)
     }
 }

@@ -1,5 +1,5 @@
 use crate::evaluate::runnable::{CompiledProcessData, PythonProcessData, RunnableProcess};
-use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess};
+use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess, ProcessInput};
 use crate::messages::EvaluationLanguage;
 use crate::util;
 use std::path::PathBuf;
@@ -64,7 +64,7 @@ fn compile(
         },
     )?;
 
-    process.spawn(code.as_bytes())?;
+    process.spawn(ProcessInput::StdIn(code.as_bytes().to_vec()), None)?;
 
     let output = process.wait_for_output()?;
 

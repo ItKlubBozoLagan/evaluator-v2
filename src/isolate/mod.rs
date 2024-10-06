@@ -4,6 +4,7 @@ use crate::isolate::meta::{ProcessMeta, ProcessStatus};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
+use std::os::fd::OwnedFd;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -50,6 +51,11 @@ pub struct IsolateLimits {
     pub memory_limit: u32,
 }
 
+pub enum ProcessInput {
+    StdIn(Vec<u8>),
+    Piped(OwnedFd),
+}
+
 pub struct IsolateRunningChild {
     // child can be taken
     child: Option<Child>,
@@ -80,9 +86,6 @@ impl IsolatedProcess {
         isolate_command.arg("--processes");
         isolate_command.arg("--cg");
 
-        isolate_command.arg("--stdin");
-        isolate_command.arg("/box/.stdin");
-
         isolate_command.arg("--wall-time");
         isolate_command.arg(format!(
             "{}",
@@ -106,7 +109,6 @@ impl IsolatedProcess {
         isolate_command.arg("--box-id");
         isolate_command.arg(format!("{}", execution_id));
 
-        isolate_command.stdout(Stdio::piped());
         isolate_command.stderr(Stdio::piped());
 
         Ok(IsolatedProcess {
@@ -117,7 +119,12 @@ impl IsolatedProcess {
         })
     }
 
-    pub fn spawn_with_hooks<F>(&mut self, stdin: &[u8], pre_hook: F) -> Result<(), IsolateError>
+    pub fn spawn_with_hooks<F>(
+        &mut self,
+        input: ProcessInput,
+        output_fd: Option<OwnedFd>,
+        pre_hook: F,
+    ) -> Result<(), IsolateError>
     where
         F: Fn(&mut IsolatedProcess) -> Result<(), IsolateError>,
     {
@@ -135,7 +142,26 @@ impl IsolatedProcess {
 
         pre_hook(self)?;
 
-        Self::write_stdin_to_file(&dir, stdin)?;
+        match input {
+            ProcessInput::StdIn(stdin) => {
+                Self::write_stdin_to_file(&dir, &stdin)?;
+
+                self.command.arg("--stdin");
+                self.command.arg("/box/.stdin");
+            }
+            ProcessInput::Piped(fd) => {
+                self.command.stdin(Stdio::from(fd));
+            }
+        };
+
+        match output_fd {
+            Some(fd) => {
+                self.command.stdout(Stdio::from(fd));
+            }
+            None => {
+                self.command.stdout(Stdio::piped());
+            }
+        }
 
         self.command.arg("--run");
         self.command.arg("--");
@@ -158,8 +184,12 @@ impl IsolatedProcess {
         Ok(())
     }
 
-    pub fn spawn(&mut self, stdin: &[u8]) -> Result<(), IsolateError> {
-        self.spawn_with_hooks(stdin, |_| Ok(()))
+    pub fn spawn(
+        &mut self,
+        input: ProcessInput,
+        output_fd: Option<OwnedFd>,
+    ) -> Result<(), IsolateError> {
+        self.spawn_with_hooks(input, output_fd, |_| Ok(()))
     }
 
     fn spawn_init(&mut self) -> Result<PathBuf, IsolateError> {
@@ -286,10 +316,10 @@ impl IsolatedProcess {
                 .and_then(|val| val.parse::<f64>().ok())
                 .map(|val| (val * 1000.0) as u32)
                 .unwrap_or(0),
-            exit_signal: key_value
-                .get("exitsig")
-                .and_then(|val| val.parse::<u16>().ok())
-                .unwrap_or(0),
+            cg_oom_killed: key_value
+                .get("cg-oom-killed")
+                .map(|val| val == "1")
+                .unwrap_or(false),
         };
 
         Ok(meta)
