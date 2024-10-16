@@ -75,7 +75,7 @@ fn interact_with_testcase(
         };
 
         return Ok(TestcaseResult {
-            id: testcase.id,
+            id: testcase.id.clone(),
             verdict,
             memory: process_meta.cg_mem_kb,
             time: process_meta.time_ms,
@@ -103,7 +103,7 @@ fn interact_with_testcase(
         Ok(result) => result,
         Err(err) => {
             return Ok(TestcaseResult {
-                id: testcase.id,
+                id: testcase.id.clone(),
                 verdict: (&err).into(),
                 memory: 0,
                 time: 0,
@@ -119,7 +119,7 @@ fn interact_with_testcase(
     };
 
     Ok(TestcaseResult {
-        id: testcase.id,
+        id: testcase.id.clone(),
         verdict,
         // TODO: backend most likely wants bytes
         memory: process_meta.cg_mem_kb,
@@ -152,7 +152,7 @@ pub fn evaluate(
     for testcase in &evaluation.testcases {
         if global_verdict != Verdict::Accepted && !matches!(global_verdict, Verdict::Custom(_)) {
             testcase_results.push(TestcaseResult {
-                id: testcase.id,
+                id: testcase.id.clone(),
                 verdict: Verdict::Skipped,
                 memory: 0,
                 time: 0,
@@ -166,7 +166,7 @@ pub fn evaluate(
         let result = match result {
             Ok(res) => res,
             Err(err) => TestcaseResult {
-                id: testcase.id,
+                id: testcase.id.clone(),
                 verdict: Verdict::SystemError,
                 time: 0,
                 memory: 0,

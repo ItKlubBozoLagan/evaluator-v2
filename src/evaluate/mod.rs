@@ -30,7 +30,7 @@ pub struct SuccessfulEvaluation {
 
 #[derive(Debug, Serialize)]
 pub struct TestcaseResult {
-    id: u64,
+    id: String,
     verdict: Verdict,
     time: u32,
     memory: u32,

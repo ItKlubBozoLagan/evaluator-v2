@@ -9,7 +9,7 @@ fn evaluate_with_testcase(
 ) -> TestcaseResult {
     let Ok(check_result) = checker.check(output, testcase) else {
         return TestcaseResult {
-            id: testcase.id,
+            id: testcase.id.clone(),
             verdict: Verdict::JudgingError,
             memory: 0,
             time: 0,
@@ -24,7 +24,7 @@ fn evaluate_with_testcase(
     };
 
     TestcaseResult {
-        id: testcase.id,
+        id: testcase.id.clone(),
         verdict,
         memory: 0,
         time: 0,

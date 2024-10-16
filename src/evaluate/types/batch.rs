@@ -20,7 +20,7 @@ fn evaluate_with_testcase(
 
     let Ok(ProcessRunResult { output, meta }) = running_process else {
         return TestcaseResult {
-            id: testcase.id,
+            id: testcase.id.clone(),
             verdict: Verdict::SystemError,
             memory: 0,
             time: 0,
@@ -39,7 +39,7 @@ fn evaluate_with_testcase(
         };
 
         return TestcaseResult {
-            id: testcase.id,
+            id: testcase.id.clone(),
             verdict,
             memory: meta.cg_mem_kb,
             time: meta.time_ms,
@@ -53,7 +53,7 @@ fn evaluate_with_testcase(
         Ok(result) => result,
         Err(err) => {
             return TestcaseResult {
-                id: testcase.id,
+                id: testcase.id.clone(),
                 verdict: (&err).into(),
                 memory: 0,
                 time: 0,
@@ -69,7 +69,7 @@ fn evaluate_with_testcase(
     };
 
     TestcaseResult {
-        id: testcase.id,
+        id: testcase.id.clone(),
         verdict,
         // TODO: backend most likely wants bytes
         memory: meta.cg_mem_kb,
@@ -95,7 +95,7 @@ pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, Ev
     for testcase in &evaluation.testcases {
         if global_verdict != Verdict::Accepted && !matches!(global_verdict, Verdict::Custom(_)) {
             testcase_results.push(TestcaseResult {
-                id: testcase.id,
+                id: testcase.id.clone(),
                 verdict: Verdict::Skipped,
                 memory: 0,
                 time: 0,

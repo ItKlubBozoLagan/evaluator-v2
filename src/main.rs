@@ -76,22 +76,22 @@ meta.close()
         },
         testcases: vec![
             Testcase {
-                id: 1,
+                id: "1".to_string(),
                 input: "10".to_string(),
                 output: "".to_string(),
             },
             Testcase {
-                id: 2,
+                id: "2".to_string(),
                 input: "986".to_string(),
                 output: "".to_string(),
             },
             Testcase {
-                id: 3,
+                id: "3".to_string(),
                 input: "1000".to_string(),
                 output: "".to_string(),
             },
             Testcase {
-                id: 4,
+                id: "4".to_string(),
                 input: "1000000".to_string(),
                 output: "".to_string(),
             },

@@ -67,7 +67,7 @@ pub enum Evaluation {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Testcase {
-    pub id: u64,
+    pub id: String,
     pub input: String,
     pub output: String,
 }
