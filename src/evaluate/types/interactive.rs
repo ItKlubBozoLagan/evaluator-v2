@@ -104,7 +104,7 @@ fn interact_with_testcase(
         Err(err) => {
             return Ok(TestcaseResult {
                 id: testcase.id.clone(),
-                verdict: (&err).into(),
+                verdict: Verdict::from(&err),
                 memory: 0,
                 time: 0,
                 error: Some(err.to_string()),

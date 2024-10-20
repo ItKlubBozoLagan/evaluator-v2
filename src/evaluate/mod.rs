@@ -30,27 +30,36 @@ pub struct SuccessfulEvaluation {
 
 #[derive(Debug, Serialize)]
 pub struct TestcaseResult {
-    id: String,
-    verdict: Verdict,
-    time: u32,
-    memory: u32,
-    error: Option<String>,
+    pub id: String,
+    pub verdict: Verdict,
+    pub time: u32,
+    pub memory: u32,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "type", content = "data")]
 pub enum Verdict {
+    #[serde(rename = "accepted")]
     Accepted,
+    #[serde(rename = "wrong_answer")]
     WrongAnswer,
+    #[serde(rename = "custom")]
     Custom(String),
+    #[serde(rename = "time_limit_exceeded")]
     TimeLimitExceeded,
+    #[serde(rename = "memory_limit_exceeded")]
     MemoryLimitExceeded,
+    #[serde(rename = "runtime_error")]
     RuntimeError,
+    #[serde(rename = "judging_error")]
     JudgingError,
+    #[serde(rename = "system_error")]
     SystemError,
+    #[serde(rename = "skipped")]
     Skipped,
 }
 
-// TODO: wrap everything in isolate
 pub fn begin_evaluation(evaluation: Evaluation) -> Result<SuccessfulEvaluation, EvaluationError> {
     match evaluation {
         Evaluation::Batch(batch_evaluation) => types::batch::evaluate(&batch_evaluation),

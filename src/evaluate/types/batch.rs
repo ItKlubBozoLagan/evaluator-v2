@@ -18,14 +18,17 @@ fn evaluate_with_testcase(
         None,
     );
 
-    let Ok(ProcessRunResult { output, meta }) = running_process else {
-        return TestcaseResult {
-            id: testcase.id.clone(),
-            verdict: Verdict::SystemError,
-            memory: 0,
-            time: 0,
-            error: None,
-        };
+    let ProcessRunResult { output, meta } = match running_process {
+        Ok(it) => it,
+        Err(err) => {
+            return TestcaseResult {
+                id: testcase.id.clone(),
+                verdict: Verdict::SystemError,
+                memory: 0,
+                time: 0,
+                error: Some(err.to_string()),
+            }
+        }
     };
 
     // FIXME: repeated
@@ -71,7 +74,6 @@ fn evaluate_with_testcase(
     TestcaseResult {
         id: testcase.id.clone(),
         verdict,
-        // TODO: backend most likely wants bytes
         memory: meta.cg_mem_kb,
         time: meta.time_ms,
         error: None,
