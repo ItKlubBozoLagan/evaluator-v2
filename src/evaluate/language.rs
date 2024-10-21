@@ -11,7 +11,7 @@ impl EvaluationLanguage {
         match self {
             E::C => Some((
                 "/usr/bin/gcc",
-                vec!["-std=c11", "-x", "c", "-O3", "-Wall", "-o", out_file, "-"]
+                vec!["-std=c11", "-x", "c", "-O2", "-Wall", "-o", out_file, "-"]
                     .into_iter()
                     .map(String::from)
                     .collect(),
@@ -23,7 +23,7 @@ impl EvaluationLanguage {
                     "-std=c++17",
                     "-x",
                     "c++",
-                    "-O3",
+                    "-O2",
                     "-Wall",
                     "-o",
                     out_file,
@@ -36,7 +36,7 @@ impl EvaluationLanguage {
             )),
             E::Rust => Some((
                 "/usr/bin/rustc",
-                vec!["build", "-C", "opt-level=3", "-o", out_file, "-"]
+                vec!["build", "-C", "opt-level=2", "-o", out_file, "-"]
                     .into_iter()
                     .map(String::from)
                     .collect(),
