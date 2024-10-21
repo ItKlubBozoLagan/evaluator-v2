@@ -29,14 +29,10 @@ fn get_etc_java_directories() -> Vec<String> {
         })
         .unwrap_or_else(|_| vec![]);
 
-    dbg!(&etc_dir_names);
-
     let java_dir_names: Vec<String> = etc_dir_names
         .into_iter()
         .filter(|path| path.starts_with("/etc/java"))
         .collect();
-
-    dbg!(&java_dir_names);
 
     java_dir_names
 }
