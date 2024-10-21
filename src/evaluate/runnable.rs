@@ -1,5 +1,6 @@
 use crate::isolate::meta::ProcessMeta;
 use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess, ProcessInput};
+use crate::util;
 use std::os::fd::OwnedFd;
 use std::path::PathBuf;
 use std::process::Output;
@@ -22,9 +23,15 @@ pub struct PythonProcessData {
 }
 
 #[derive(Debug)]
+pub struct JavaProcessData {
+    pub built_class_name: PathBuf,
+}
+
+#[derive(Debug)]
 pub enum RunnableProcess {
     Compiled(CompiledProcessData),
     Python(PythonProcessData),
+    Java(JavaProcessData),
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +73,10 @@ impl RunnableProcess {
                     isolated.copy_in_box(executable_path, "program")
                 })?,
             RunnableProcess::Python(_) => process.spawn(input, output_pipe)?,
+            RunnableProcess::Java(JavaProcessData { built_class_name }) => process
+                .spawn_with_hooks(input, output_pipe, |isolated| {
+                    isolated.copy_in_box(built_class_name, "Main.class")
+                })?,
         };
 
         Ok(process)
@@ -84,8 +95,10 @@ impl RunnableProcess {
                     executable: "program".to_string(),
                     args: Vec::new(),
                     in_path: false,
+                    system: false,
                 },
                 limits,
+                vec![],
             )?,
             RunnableProcess::Python(PythonProcessData { code }) => IsolatedProcess::new(
                 exec_id,
@@ -93,8 +106,21 @@ impl RunnableProcess {
                     executable: "/usr/bin/python3".to_string(),
                     args: vec!["-c".to_string(), code.clone()],
                     in_path: true,
+                    system: false,
                 },
                 limits,
+                vec![],
+            )?,
+            RunnableProcess::Java(_) => IsolatedProcess::new(
+                exec_id,
+                &CommandMeta {
+                    executable: "/usr/bin/java".to_string(),
+                    args: vec!["Main".to_string()],
+                    in_path: true,
+                    system: false,
+                },
+                limits,
+                util::ETC_JAVA_DIRECTORIES.clone(),
             )?,
         };
 

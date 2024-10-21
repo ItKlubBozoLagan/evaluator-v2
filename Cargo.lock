@@ -280,6 +280,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "core_affinity",
+ "lazy_static",
  "libc",
  "libseccomp",
  "libseccomp-sys",

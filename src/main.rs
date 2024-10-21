@@ -1,11 +1,8 @@
-use crate::evaluate::{TestcaseResult, Verdict};
-use crate::messages::{
-    CheckerData, Evaluation, EvaluationLanguage, InteractiveEvaluation, Message, Testcase,
-};
+use crate::messages::Message;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
-use std::sync::Arc;
 use ::tracing::info;
+use std::sync::Arc;
 
 mod messages;
 mod state;
@@ -32,15 +29,6 @@ fn main() -> anyhow::Result<()> {
 
 async fn entrypoint() -> anyhow::Result<()> {
     info!("Starting...");
-
-    let str = serde_json::to_string(&TestcaseResult {
-        id: "a".to_string(),
-        error: None,
-        verdict: Verdict::Custom("adasd".to_string()),
-        memory: 0,
-        time: 0,
-    })?;
-    println!("{}", str);
 
     let state = Arc::new(AppState {
         redis_queue_key: "evaluator_msg_queue".to_string(),

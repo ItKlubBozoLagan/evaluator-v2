@@ -15,6 +15,8 @@ const ISOLATE_BINARY_LOCATION: &str = "/usr/local/bin/isolate";
 const MAX_DISK_QUOTA_BLOCKS: u32 = 25600;
 const MAX_DISK_QUOTA_INODES: u32 = 10;
 
+const MAX_OPEN_FILES_SYSTEM: u32 = 256;
+
 const MAX_WALL_TIME_LIMIT_SECONDS: f32 = 30.0;
 
 // https://github.com/ioi/isolate/issues/95
@@ -43,6 +45,10 @@ pub struct CommandMeta {
     pub executable: String,
     pub args: Vec<String>,
     pub in_path: bool,
+
+    // special flag used for controlled executions like compilation
+    //  currently, this will mount /etc and increase open file limit
+    pub system: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +74,8 @@ pub struct IsolatedProcess {
     command_meta: CommandMeta,
     command: Command,
 
+    dir_mounts: Vec<String>,
+
     running_child: Option<IsolateRunningChild>,
 }
 
@@ -77,6 +85,7 @@ impl IsolatedProcess {
         execution_id: u8,
         command_meta: &CommandMeta,
         limits: &IsolateLimits,
+        dir_mounts: Vec<String>,
     ) -> Result<Self, IsolateError> {
         let mut isolate_command = Command::new(ISOLATE_BINARY_LOCATION);
 
@@ -115,6 +124,7 @@ impl IsolatedProcess {
             box_id: execution_id,
             command_meta: command_meta.clone(),
             command: isolate_command,
+            dir_mounts,
             running_child: None,
         })
     }
@@ -142,6 +152,11 @@ impl IsolatedProcess {
 
         pre_hook(self)?;
 
+        if self.command_meta.system {
+            self.command.arg("--open-files");
+            self.command.arg(format!("{}", MAX_OPEN_FILES_SYSTEM));
+        }
+
         match input {
             ProcessInput::StdIn(stdin) => {
                 Self::write_stdin_to_file(&dir, &stdin)?;
@@ -161,6 +176,11 @@ impl IsolatedProcess {
             None => {
                 self.command.stdout(Stdio::piped());
             }
+        }
+
+        for dir_mount in self.dir_mounts.iter() {
+            self.command.arg("--dir");
+            self.command.arg(dir_mount);
         }
 
         self.command.arg("--run");

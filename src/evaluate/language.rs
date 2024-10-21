@@ -1,47 +1,71 @@
 use crate::messages::EvaluationLanguage;
+use crate::util;
 
 impl EvaluationLanguage {
     // get compiler command and arguments based on language
-    pub fn get_compiler_command(&self, out_file: &str) -> Option<(&'static str, Vec<String>)> {
-        let out_file = out_file.to_string();
-
+    pub fn get_compiler_command(
+        &self,
+        out_file: &str,
+    ) -> Option<(&'static str, Vec<String>, Vec<String>)> {
         type E = EvaluationLanguage;
         match self {
             E::C => Some((
                 "/usr/bin/gcc",
-                vec![
-                    "-x".to_string(),
-                    "c".to_string(),
-                    "-O3".to_string(),
-                    "-Wall".to_string(),
-                    "-o".to_string(),
-                    out_file,
-                    "-".to_string(),
-                ],
+                vec!["-std=c11", "-x", "c", "-O3", "-Wall", "-o", out_file, "-"]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+                vec![],
             )),
             E::Cpp => Some((
                 "/usr/bin/g++",
                 vec![
-                    "-x".to_string(),
-                    "c++".to_string(),
-                    "-O3".to_string(),
-                    "-Wall".to_string(),
-                    "-o".to_string(),
+                    "-std=c++17",
+                    "-x",
+                    "c++",
+                    "-O3",
+                    "-Wall",
+                    "-o",
                     out_file,
-                    "-".to_string(),
-                ],
+                    "-",
+                ]
+                .into_iter()
+                .map(String::from)
+                .collect(),
+                vec![],
             )),
-            E::Rust => Some(("rustc", vec!["-o".to_string(), out_file, "-".to_string()])),
-            E::Java => Some(("/usr/bin/javac", vec![])),
+            E::Rust => Some((
+                "/usr/bin/rustc",
+                vec!["build", "-C", "opt-level=3", "-o", out_file, "-"]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+                vec![],
+            )),
             E::Go => Some((
-                "/usr/bin/go",
+                "/usr/bin/bash",
                 vec![
-                    "build".to_string(),
-                    "-o".to_string(),
-                    out_file,
-                    "-".to_string(),
-                ],
+                    "-c",
+                    &format!("cp /dev/stdin source.go && GOCACHE=/tmp/.gocache /usr/bin/go build -o {out_file} source.go && rm source.go"),
+                ]
+                .into_iter()
+                .map(String::from)
+                .collect(),
+                vec![],
             )),
+            E::Java => {
+                Some((
+                    "/usr/bin/bash",
+                    vec![
+                        "-c",
+                        &format!("cp /dev/stdin source.java && /usr/bin/javac source.java && mv Main.class {out_file}"),
+                    ]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+                    util::ETC_JAVA_DIRECTORIES.clone(),
+                ))
+            }
             _ => None,
         }
     }

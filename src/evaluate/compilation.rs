@@ -1,4 +1,6 @@
-use crate::evaluate::runnable::{CompiledProcessData, PythonProcessData, RunnableProcess};
+use crate::evaluate::runnable::{
+    CompiledProcessData, JavaProcessData, PythonProcessData, RunnableProcess,
+};
 use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess, ProcessInput};
 use crate::messages::EvaluationLanguage;
 use crate::util;
@@ -46,7 +48,7 @@ fn compile(
     let output_file = util::random_bytes(8);
     let file_path = PathBuf::from("/tmp").join(&output_file);
 
-    let (compiler, args) = language
+    let (compiler, args, dir_mounts) = language
         .get_compiler_command(&output_file)
         .ok_or_else(|| CompilationError::UnsupportedLanguage(language.clone()))?;
 
@@ -56,12 +58,14 @@ fn compile(
             executable: compiler.to_string(),
             args,
             in_path: true,
+            system: true,
         },
-        // TODO: extract into variables
+        // TODO: extract into constants
         &IsolateLimits {
             time_limit: 30.0,
             memory_limit: 1 << 20, // 1 GiB
         },
+        dir_mounts,
     )?;
 
     process.spawn(ProcessInput::StdIn(code.as_bytes().to_vec()), None)?;
@@ -77,9 +81,16 @@ fn compile(
         ));
     }
 
-    Ok(CompilationResult {
-        process: RunnableProcess::Compiled(CompiledProcessData {
-            executable_path: file_path,
+    match language {
+        EvaluationLanguage::Java => Ok(CompilationResult {
+            process: RunnableProcess::Java(JavaProcessData {
+                built_class_name: file_path,
+            }),
         }),
-    })
+        _ => Ok(CompilationResult {
+            process: RunnableProcess::Compiled(CompiledProcessData {
+                executable_path: file_path,
+            }),
+        }),
+    }
 }

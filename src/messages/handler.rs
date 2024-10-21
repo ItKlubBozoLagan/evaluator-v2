@@ -3,7 +3,7 @@ use crate::state::AppState;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MessageHandlerError {
@@ -44,11 +44,7 @@ async fn do_handle_message(
         return Ok(None);
     };
 
-    debug!("got message: {val}");
-
     let message = serde_json::from_str::<Message>(&val);
-
-    dbg!(&message);
 
     let Ok(msg) = message else {
         return Ok(None);

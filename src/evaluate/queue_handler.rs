@@ -15,11 +15,11 @@ pub async fn handle(
     mut redis_connection: ConnectionManager,
 ) {
     while let Ok(Message::BeginEvaluation(evaluation)) = rx.recv().await {
-        debug!("Got evaluation request: {evaluation:#?}");
+        debug!("got evaluation request: {evaluation:#?}");
         // TODO: lock to thread
         let res = begin_evaluation(evaluation);
 
-        dbg!(&res);
+        debug!("evaluation finished: {res:#?}");
 
         let output_json = match &res {
             Ok(result) => {

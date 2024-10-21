@@ -55,9 +55,7 @@ fn interact_with_testcase(
     )?;
 
     let process_output = process.wait_for_output()?;
-    let interactor_process_output = interactor.wait_for_output()?;
-
-    dbg!(&interactor_process_output);
+    let _ = interactor.wait_for_output()?;
 
     let process_meta = process.load_meta()?;
 
