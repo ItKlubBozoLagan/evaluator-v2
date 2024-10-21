@@ -35,7 +35,7 @@ fn evaluate_with_testcase(
 pub fn evaluate(
     evaluation: &OutputOnlyEvaluation,
 ) -> Result<SuccessfulEvaluation, EvaluationError> {
-    let checker = (&evaluation.checker).try_into()?;
+    let checker = OutputChecker::try_from(&evaluation.checker)?;
 
     let result = evaluate_with_testcase(&evaluation.output, &checker, &evaluation.testcase);
 

@@ -84,7 +84,7 @@ fn interact_with_testcase(
     }
 
     let out_meta_file = PathBuf::from(format!("/tmp/{}", random_bytes(8)));
-    interactor.move_out_of_box("interactor_meta.out", &*out_meta_file)?;
+    interactor.move_out_of_box("interactor_meta.out", &out_meta_file)?;
 
     process.cleanup_and_reset()?;
     interactor.cleanup_and_reset()?;
@@ -97,7 +97,7 @@ fn interact_with_testcase(
 
     fs::remove_file(&out_meta_file)?;
 
-    let check_result = TryInto::<CheckerResult>::try_into(interactor_result.trim());
+    let check_result = CheckerResult::try_from(interactor_result.trim());
 
     let check_result = match check_result {
         Ok(result) => result,
