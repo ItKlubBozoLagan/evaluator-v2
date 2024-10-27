@@ -1,4 +1,4 @@
-use crate::evaluate::begin_evaluation;
+use crate::evaluate::{begin_evaluation, SuccessfulEvaluation, Verdict};
 use crate::messages::Message;
 use crate::state::AppState;
 use redis::aio::ConnectionManager;
@@ -17,19 +17,23 @@ pub async fn handle(
     while let Ok(Message::BeginEvaluation(evaluation)) = rx.recv().await {
         debug!("got evaluation request: {evaluation:#?}");
         // TODO: lock to thread
-        let res = begin_evaluation(evaluation);
+        let res = begin_evaluation(&evaluation);
 
         debug!("evaluation finished: {res:#?}");
 
-        let output_json = match &res {
-            Ok(result) => {
-                serde_json::to_string(result).expect("evaluation to json should have worked")
-            }
-            Err(_) => {
-                // TODO: handle appropriately
-                String::new()
-            }
+        let result = match &res {
+            Ok(result) => result,
+            Err(err) => &SuccessfulEvaluation {
+                evaluation_id: evaluation.get_evaluation_id(),
+                verdict: Verdict::CompilationError(err.to_string()),
+                testcases: vec![],
+                max_time: 0,
+                max_memory: 0,
+            },
         };
+
+        let output_json =
+            serde_json::to_string(result).expect("evaluation to json should have worked");
 
         let publish_result = redis_connection
             .publish::<_, _, ()>(REDIS_EVALUATION_PUBSUB, output_json)

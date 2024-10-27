@@ -377,3 +377,11 @@ impl IsolatedProcess {
         Ok(())
     }
 }
+
+impl Drop for IsolatedProcess {
+    fn drop(&mut self) {
+        if self.running_child.is_some() {
+            let _ = self.cleanup_and_reset();
+        }
+    }
+}

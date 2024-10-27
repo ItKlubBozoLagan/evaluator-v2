@@ -1,7 +1,7 @@
-use crate::evaluate::compilation::process_compilation;
+use crate::evaluate::compilation::{process_compilation, CompilationError};
 use crate::evaluate::output::{CheckerResult, OutputChecker};
 use crate::evaluate::runnable::{ProcessRunResult, RunnableProcess};
-use crate::evaluate::{EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict};
+use crate::evaluate::{SuccessfulEvaluation, TestcaseResult, Verdict};
 use crate::isolate::meta::ProcessStatus;
 use crate::isolate::{IsolateLimits, ProcessInput};
 use crate::messages::{BatchEvaluation, Testcase};
@@ -80,7 +80,7 @@ fn evaluate_with_testcase(
     }
 }
 
-pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, EvaluationError> {
+pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, CompilationError> {
     let compilation_result = process_compilation(&evaluation.code, &evaluation.language)?;
 
     let checker = (&evaluation.checker).try_into()?;

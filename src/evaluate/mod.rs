@@ -8,16 +8,6 @@ mod types;
 use crate::evaluate::compilation::CompilationError;
 use crate::messages::Evaluation;
 use serde::Serialize;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum EvaluationError {
-    #[error("IO Error: {0}")]
-    IOError(#[from] std::io::Error),
-
-    #[error("Compilation error: {0}")]
-    CompilationError(#[from] CompilationError),
-}
 
 #[derive(Debug, Serialize)]
 pub struct SuccessfulEvaluation {
@@ -56,18 +46,20 @@ pub enum Verdict {
     JudgingError,
     #[serde(rename = "system_error")]
     SystemError,
+    #[serde(rename = "compilation_error")]
+    CompilationError(String),
     #[serde(rename = "skipped")]
     Skipped,
 }
 
-pub fn begin_evaluation(evaluation: Evaluation) -> Result<SuccessfulEvaluation, EvaluationError> {
+pub fn begin_evaluation(evaluation: &Evaluation) -> Result<SuccessfulEvaluation, CompilationError> {
     match evaluation {
-        Evaluation::Batch(batch_evaluation) => types::batch::evaluate(&batch_evaluation),
+        Evaluation::Batch(batch_evaluation) => types::batch::evaluate(batch_evaluation),
         Evaluation::OutputOnly(output_only_evaluation) => {
-            types::output_only::evaluate(&output_only_evaluation)
+            types::output_only::evaluate(output_only_evaluation)
         }
         Evaluation::Interactive(interactive_evaluation) => {
-            types::interactive::evaluate(&interactive_evaluation)
+            types::interactive::evaluate(interactive_evaluation)
         }
     }
 }

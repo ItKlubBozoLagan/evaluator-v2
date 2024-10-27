@@ -1,7 +1,7 @@
-use crate::evaluate::compilation::process_compilation;
+use crate::evaluate::compilation::{process_compilation, CompilationError};
 use crate::evaluate::output::CheckerResult;
 use crate::evaluate::runnable::{ProcessRunError, RunnableProcess};
-use crate::evaluate::{EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict};
+use crate::evaluate::{SuccessfulEvaluation, TestcaseResult, Verdict};
 use crate::isolate::meta::ProcessStatus;
 use crate::isolate::{IsolateError, IsolateLimits, ProcessInput};
 use crate::messages::{InteractiveEvaluation, Testcase};
@@ -128,7 +128,7 @@ fn interact_with_testcase(
 
 pub fn evaluate(
     evaluation: &InteractiveEvaluation,
-) -> Result<SuccessfulEvaluation, EvaluationError> {
+) -> Result<SuccessfulEvaluation, CompilationError> {
     let compiled_program = process_compilation(&evaluation.code, &evaluation.language)?;
 
     let compiled_interactor =

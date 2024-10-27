@@ -66,6 +66,16 @@ pub enum Evaluation {
     OutputOnly(OutputOnlyEvaluation),
 }
 
+impl Evaluation {
+    pub fn get_evaluation_id(&self) -> u64 {
+        match self {
+            Evaluation::Batch(BatchEvaluation { id, .. })
+            | Evaluation::Interactive(InteractiveEvaluation { id, .. })
+            | Evaluation::OutputOnly(OutputOnlyEvaluation { id, .. }) => *id,
+        }
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Testcase {
     pub id: String,

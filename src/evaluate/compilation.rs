@@ -72,14 +72,17 @@ fn compile(
 
     let output = process.wait_for_output()?;
 
+    if !output.status.success() {
+        process.cleanup_and_reset()?;
+
+        return Err(CompilationError::CompilationError(format!(
+            "\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
     process.move_out_of_box(&output_file, &file_path)?;
     process.cleanup_and_reset()?;
-
-    if !output.status.success() {
-        return Err(CompilationError::CompilationError(
-            String::from_utf8_lossy(&output.stderr).into(),
-        ));
-    }
 
     match language {
         EvaluationLanguage::Java => Ok(CompilationResult {
