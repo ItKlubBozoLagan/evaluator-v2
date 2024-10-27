@@ -3,7 +3,7 @@ use crate::state::AppState;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::warn;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MessageHandlerError {
@@ -40,7 +40,6 @@ async fn do_handle_message(
     let val: Option<(String, String)> = connection.blpop(&state.redis_queue_key, 0.0).await?;
 
     let Some((_, val)) = val else {
-        info!("a");
         return Ok(None);
     };
 
