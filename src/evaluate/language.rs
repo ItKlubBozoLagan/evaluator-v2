@@ -36,7 +36,7 @@ impl EvaluationLanguage {
             )),
             E::Rust => Some((
                 "/usr/bin/rustc",
-                vec!["build", "-C", "opt-level=2", "-o", out_file, "-"]
+                vec!["-C", "opt-level=2", "-o", out_file, "-"]
                     .into_iter()
                     .map(String::from)
                     .collect(),
