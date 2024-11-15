@@ -11,10 +11,12 @@ impl EvaluationLanguage {
         match self {
             E::C => Some((
                 "/usr/bin/gcc",
-                vec!["-std=c11", "-x", "c", "-O2", "-Wall", "-o", out_file, "-"]
-                    .into_iter()
-                    .map(String::from)
-                    .collect(),
+                vec![
+                    "-std=c11", "-x", "c", "-O2", "-static", "-Wall", "-o", out_file, "-",
+                ]
+                .into_iter()
+                .map(String::from)
+                .collect(),
                 vec![],
             )),
             E::Cpp => Some((
@@ -24,6 +26,7 @@ impl EvaluationLanguage {
                     "-x",
                     "c++",
                     "-O2",
+                    "-static",
                     "-Wall",
                     "-o",
                     out_file,
@@ -36,10 +39,18 @@ impl EvaluationLanguage {
             )),
             E::Rust => Some((
                 "/usr/bin/rustc",
-                vec!["-C", "opt-level=2", "-o", out_file, "-"]
-                    .into_iter()
-                    .map(String::from)
-                    .collect(),
+                vec![
+                    "-C",
+                    "opt-level=2",
+                    "-C",
+                    "-C target-feature=+crt-static",
+                    "-o",
+                    out_file,
+                    "-",
+                ]
+                .into_iter()
+                .map(String::from)
+                .collect(),
                 vec![],
             )),
             E::Go => Some((
