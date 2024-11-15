@@ -51,6 +51,10 @@ pub async fn handle(
                 &available_box_ids
             );
             let res = begin_evaluation(&evaluation, &available_box_ids);
+            info!(
+                "Evaluation finished for {}",
+                &evaluation.get_evaluation_id()
+            );
             debug!("evaluation finished: {res:#?}");
 
             Handle::current().block_on(async move {
