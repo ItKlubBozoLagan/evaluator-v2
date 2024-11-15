@@ -43,11 +43,12 @@ pub struct ProcessRunResult {
 impl RunnableProcess {
     pub fn run(
         &self,
+        exec_id: u8,
         input: ProcessInput,
         limits: &IsolateLimits,
         output_pipe: Option<OwnedFd>,
     ) -> Result<ProcessRunResult, ProcessRunError> {
-        let mut process = self.just_run(0, input, limits, output_pipe)?;
+        let mut process = self.just_run(exec_id, input, limits, output_pipe)?;
 
         let output = process.wait_for_output()?;
 
@@ -82,7 +83,6 @@ impl RunnableProcess {
         Ok(process)
     }
 
-    // FIXME: execution_id
     pub fn as_isolated(
         &self,
         exec_id: u8,

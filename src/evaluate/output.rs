@@ -51,7 +51,12 @@ fn trim_every_line(input: &str) -> String {
 }
 
 impl OutputChecker {
-    pub fn check(&self, output: &str, testcase: &Testcase) -> Result<CheckerResult, CheckerError> {
+    pub fn check(
+        &self,
+        box_id: u8,
+        output: &str,
+        testcase: &Testcase,
+    ) -> Result<CheckerResult, CheckerError> {
         match self {
             OutputChecker::Script(process) => {
                 let mut separator = String::from("[");
@@ -72,6 +77,7 @@ impl OutputChecker {
 
                 let output = process
                     .run(
+                        box_id,
                         ProcessInput::StdIn(input.as_bytes().to_vec()),
                         // TODO: extract into variables
                         &IsolateLimits {
@@ -103,13 +109,13 @@ impl OutputChecker {
     }
 }
 
-impl TryFrom<&Option<CheckerData>> for OutputChecker {
+impl TryFrom<(u8, &Option<CheckerData>)> for OutputChecker {
     type Error = CompilationError;
 
-    fn try_from(value: &Option<CheckerData>) -> Result<Self, Self::Error> {
+    fn try_from((box_id, value): (u8, &Option<CheckerData>)) -> Result<Self, Self::Error> {
         match value {
             Some(CheckerData { script, language }) => {
-                let compiled_checker = process_compilation(script, language)?;
+                let compiled_checker = process_compilation(script, language, box_id)?;
 
                 Ok(OutputChecker::Script(compiled_checker.process))
             }

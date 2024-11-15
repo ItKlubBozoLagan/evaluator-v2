@@ -30,6 +30,7 @@ pub enum CompilationError {
 pub fn process_compilation(
     code: &str,
     language: &EvaluationLanguage,
+    box_id: u8,
 ) -> Result<CompilationResult, CompilationError> {
     match language {
         EvaluationLanguage::Python => Ok(CompilationResult {
@@ -37,13 +38,14 @@ pub fn process_compilation(
                 code: code.to_string(),
             }),
         }),
-        _ => compile(code, language),
+        _ => compile(code, language, box_id),
     }
 }
 
 fn compile(
     code: &str,
     language: &EvaluationLanguage,
+    box_id: u8,
 ) -> Result<CompilationResult, CompilationError> {
     let output_file = util::random_bytes(8);
     let file_path = PathBuf::from("/tmp").join(&output_file);
@@ -53,7 +55,7 @@ fn compile(
         .ok_or_else(|| CompilationError::UnsupportedLanguage(language.clone()))?;
 
     let mut process = IsolatedProcess::new(
-        0,
+        box_id,
         &CommandMeta {
             executable: compiler.to_string(),
             args,

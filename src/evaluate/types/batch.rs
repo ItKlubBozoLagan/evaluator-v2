@@ -7,12 +7,14 @@ use crate::isolate::{IsolateLimits, ProcessInput};
 use crate::messages::{BatchEvaluation, Testcase};
 
 fn evaluate_with_testcase(
+    box_id: u8,
     process: &RunnableProcess,
     checker: &OutputChecker,
     testcase: &Testcase,
     limits: &IsolateLimits,
 ) -> TestcaseResult {
     let running_process = process.run(
+        box_id,
         ProcessInput::StdIn(testcase.input.as_bytes().to_vec()),
         limits,
         None,
@@ -52,7 +54,7 @@ fn evaluate_with_testcase(
 
     let output_str = String::from_utf8_lossy(&output.stdout).to_string();
 
-    let check_result = match checker.check(&output_str, testcase) {
+    let check_result = match checker.check(box_id, &output_str, testcase) {
         Ok(result) => result,
         Err(err) => {
             return TestcaseResult {
@@ -80,10 +82,13 @@ fn evaluate_with_testcase(
     }
 }
 
-pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, CompilationError> {
-    let compilation_result = process_compilation(&evaluation.code, &evaluation.language)?;
+pub fn evaluate(
+    evaluation: &BatchEvaluation,
+    box_id: u8,
+) -> Result<SuccessfulEvaluation, CompilationError> {
+    let compilation_result = process_compilation(&evaluation.code, &evaluation.language, box_id)?;
 
-    let checker = (&evaluation.checker).try_into()?;
+    let checker = OutputChecker::try_from((box_id, &evaluation.checker))?;
 
     let limits = IsolateLimits {
         time_limit: evaluation.time_limit as f32 / 1000.0,
@@ -106,8 +111,13 @@ pub fn evaluate(evaluation: &BatchEvaluation) -> Result<SuccessfulEvaluation, Co
             continue;
         }
 
-        let result =
-            evaluate_with_testcase(&compilation_result.process, &checker, testcase, &limits);
+        let result = evaluate_with_testcase(
+            box_id,
+            &compilation_result.process,
+            &checker,
+            testcase,
+            &limits,
+        );
         let result_verdict = result.verdict.clone();
 
         testcase_results.push(result);

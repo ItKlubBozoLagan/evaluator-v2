@@ -1,8 +1,10 @@
 use crate::messages::Message;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
+use std::collections::HashSet;
 use std::env;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use ::tracing::info;
 
 mod messages;
@@ -33,8 +35,14 @@ async fn entrypoint() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState {
         redis_queue_key: "evaluator_msg_queue".to_string(),
-        // evaluation_wg: WaitGroup::new(),
-        // max_evaluations: 1
+        max_evaluations: std::cmp::max(
+            env::var("EVALUATOR_MAX_EVALUATIONS")
+                .unwrap_or("2".to_string())
+                .parse::<u8>()
+                .expect("EVALUATOR_MAX_EVALUATIONS must be a number"),
+            2,
+        ),
+        used_box_ids: Mutex::from(HashSet::new()),
     });
 
     let redis_url = env::var("REDIS_URL").unwrap_or("redis://localhost:6379".to_string());
@@ -50,6 +58,8 @@ async fn entrypoint() -> anyhow::Result<()> {
     ));
 
     info!("Started");
+
+    info!("Using max evaluations: {}", state.max_evaluations);
 
     messages::handler::handle_messages(state.clone(), client.get_connection_manager().await?, tx)
         .await;

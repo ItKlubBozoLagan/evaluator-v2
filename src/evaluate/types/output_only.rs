@@ -7,8 +7,9 @@ fn evaluate_with_testcase(
     output: &str,
     checker: &OutputChecker,
     testcase: &Testcase,
+    box_id: u8,
 ) -> TestcaseResult {
-    let Ok(check_result) = checker.check(output, testcase) else {
+    let Ok(check_result) = checker.check(box_id, output, testcase) else {
         return TestcaseResult {
             id: testcase.id.clone(),
             verdict: Verdict::JudgingError,
@@ -35,10 +36,11 @@ fn evaluate_with_testcase(
 
 pub fn evaluate(
     evaluation: &OutputOnlyEvaluation,
+    box_id: u8,
 ) -> Result<SuccessfulEvaluation, CompilationError> {
-    let checker = OutputChecker::try_from(&evaluation.checker)?;
+    let checker = OutputChecker::try_from((box_id, &evaluation.checker))?;
 
-    let result = evaluate_with_testcase(&evaluation.output, &checker, &evaluation.testcase);
+    let result = evaluate_with_testcase(&evaluation.output, &checker, &evaluation.testcase, box_id);
 
     Ok(SuccessfulEvaluation {
         evaluation_id: evaluation.id,

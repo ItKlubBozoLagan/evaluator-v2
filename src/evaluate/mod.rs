@@ -52,14 +52,17 @@ pub enum Verdict {
     Skipped,
 }
 
-pub fn begin_evaluation(evaluation: &Evaluation) -> Result<SuccessfulEvaluation, CompilationError> {
+pub fn begin_evaluation(
+    evaluation: &Evaluation,
+    boxes: &[u8],
+) -> Result<SuccessfulEvaluation, CompilationError> {
     match evaluation {
-        Evaluation::Batch(batch_evaluation) => types::batch::evaluate(batch_evaluation),
+        Evaluation::Batch(batch_evaluation) => types::batch::evaluate(batch_evaluation, boxes[0]),
         Evaluation::OutputOnly(output_only_evaluation) => {
-            types::output_only::evaluate(output_only_evaluation)
+            types::output_only::evaluate(output_only_evaluation, boxes[0])
         }
         Evaluation::Interactive(interactive_evaluation) => {
-            types::interactive::evaluate(interactive_evaluation)
+            types::interactive::evaluate(interactive_evaluation, boxes[0], boxes[1])
         }
     }
 }

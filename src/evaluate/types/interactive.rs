@@ -33,6 +33,8 @@ fn interact_with_testcase(
     interactor: &RunnableProcess,
     testcase: &Testcase,
     limits: &IsolateLimits,
+    box_id: u8,
+    interactor_box_id: u8,
 ) -> Result<TestcaseResult, InteractError> {
     let (interactor_input, process_output) = nix::unistd::pipe()?;
     let (process_input, interactor_output) = nix::unistd::pipe()?;
@@ -41,14 +43,14 @@ fn interact_with_testcase(
     nix::unistd::write(process_output.as_fd(), b"\n")?;
 
     let mut interactor = interactor.just_run(
-        1,
+        interactor_box_id,
         ProcessInput::Piped(interactor_input),
         limits,
         Some(interactor_output),
     )?;
 
     let mut process = process.just_run(
-        0,
+        box_id,
         ProcessInput::Piped(process_input),
         limits,
         Some(process_output),
@@ -128,11 +130,16 @@ fn interact_with_testcase(
 
 pub fn evaluate(
     evaluation: &InteractiveEvaluation,
+    box_id: u8,
+    interactor_box_id: u8,
 ) -> Result<SuccessfulEvaluation, CompilationError> {
-    let compiled_program = process_compilation(&evaluation.code, &evaluation.language)?;
+    let compiled_program = process_compilation(&evaluation.code, &evaluation.language, box_id)?;
 
-    let compiled_interactor =
-        process_compilation(&evaluation.checker.script, &evaluation.checker.language)?;
+    let compiled_interactor = process_compilation(
+        &evaluation.checker.script,
+        &evaluation.checker.language,
+        interactor_box_id,
+    )?;
 
     let program = compiled_program.process;
 
@@ -159,7 +166,14 @@ pub fn evaluate(
             continue;
         }
 
-        let result = interact_with_testcase(&program, &interactor, testcase, &limits);
+        let result = interact_with_testcase(
+            &program,
+            &interactor,
+            testcase,
+            &limits,
+            box_id,
+            interactor_box_id,
+        );
 
         let result = match result {
             Ok(res) => res,
