@@ -14,6 +14,7 @@ const ISOLATE_BINARY_LOCATION: &str = "/usr/local/bin/isolate";
 // TODO: dynamic
 const MAX_DISK_QUOTA_BLOCKS: u32 = 25600;
 const MAX_DISK_QUOTA_INODES: u32 = 10;
+const MAX_DISK_QUOTA_INODES_SYSTEM: u32 = 100;
 
 const MAX_OPEN_FILES_SYSTEM: u32 = 256;
 
@@ -221,7 +222,12 @@ impl IsolatedProcess {
         isolate_command.arg("--quota");
         isolate_command.arg(format!(
             "{},{}",
-            MAX_DISK_QUOTA_BLOCKS, MAX_DISK_QUOTA_INODES
+            MAX_DISK_QUOTA_BLOCKS,
+            if self.command_meta.system {
+                MAX_DISK_QUOTA_INODES_SYSTEM
+            } else {
+                MAX_DISK_QUOTA_INODES
+            }
         ));
 
         isolate_command.arg("--cg");
