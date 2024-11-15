@@ -1,8 +1,9 @@
 use crate::messages::Message;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
-use ::tracing::info;
+use std::env;
 use std::sync::Arc;
+use ::tracing::info;
 
 mod messages;
 mod state;
@@ -36,7 +37,9 @@ async fn entrypoint() -> anyhow::Result<()> {
         // max_evaluations: 1
     });
 
-    let client = redis::Client::open("redis://localhost:6379")?;
+    let redis_url = env::var("REDIS_URL").unwrap_or("redis://localhost:6379".to_string());
+
+    let client = redis::Client::open(redis_url)?;
 
     let (tx, _) = tokio::sync::broadcast::channel::<Message>(16);
 
