@@ -3,7 +3,7 @@ use crate::state::AppState;
 use crate::tracing::setup_tracing;
 use std::env;
 use std::sync::Arc;
-use ::tracing::info;
+use ::tracing::{debug, info};
 
 mod messages;
 mod state;
