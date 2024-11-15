@@ -43,7 +43,7 @@ impl EvaluationLanguage {
                     "-C",
                     "opt-level=2",
                     "-C",
-                    "-C target-feature=+crt-static",
+                    "target-feature=+crt-static",
                     "-o",
                     out_file,
                     "-",
