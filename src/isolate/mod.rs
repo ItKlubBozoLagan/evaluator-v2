@@ -93,9 +93,6 @@ impl IsolatedProcess {
         isolate_command.arg("-E");
         isolate_command.arg("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
-        isolate_command.arg("-E");
-        isolate_command.arg("LD_PRELOAD=/lib/x86_64-linux-gnu/libc.so.6");
-
         isolate_command.arg("--processes");
         isolate_command.arg("--cg");
 
