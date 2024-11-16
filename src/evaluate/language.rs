@@ -28,7 +28,7 @@ impl EvaluationLanguage {
                     "-O2",
                     "-static",
                     "-Wall",
-                    "-lm"
+                    "-lm",
                     "-o",
                     out_file,
                     "-",
