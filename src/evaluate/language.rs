@@ -12,7 +12,7 @@ impl EvaluationLanguage {
             E::C => Some((
                 "/usr/bin/gcc",
                 vec![
-                    "-std=c11", "-x", "c", "-O2", "-static", "-Wall", "-o", out_file, "-",
+                    "-std=c11", "-x", "c", "-O2", "-static", "-Wall", "-lm", "-o", out_file, "-",
                 ]
                 .into_iter()
                 .map(String::from)
@@ -28,6 +28,7 @@ impl EvaluationLanguage {
                     "-O2",
                     "-static",
                     "-Wall",
+                    "-lm"
                     "-o",
                     out_file,
                     "-",
