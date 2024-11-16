@@ -1,11 +1,11 @@
 use crate::messages::Message;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
+use ::tracing::info;
 use std::collections::HashSet;
 use std::env;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use ::tracing::info;
 
 mod messages;
 mod state;
