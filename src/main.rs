@@ -2,10 +2,10 @@ use crate::environment::ENVIRONMENT;
 use crate::messages::Message;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
+use ::tracing::info;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use ::tracing::info;
 
 mod messages;
 mod state;
@@ -24,9 +24,27 @@ fn main() -> anyhow::Result<()> {
         .enable_all()
         .build()?;
 
-    rt.block_on(entrypoint())?;
+    rt.block_on(start())?;
 
     rt.shutdown_background();
+
+    Ok(())
+}
+
+async fn start() -> anyhow::Result<()> {
+    // TODO: doesn't wait for current evaluation to finish
+
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+
+    tokio::select! {
+        _ = entrypoint() => {},
+        _ = tokio::signal::ctrl_c() => {
+            info!("Shutting down");
+        },
+        _ = sigterm.recv() => {
+            info!("Shutting down");
+        }
+    }
 
     Ok(())
 }
