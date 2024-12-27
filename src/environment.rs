@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 use std::env;
 
 pub struct Environment {
+    pub force_debug_logs: bool,
     pub max_evaluations: u8,
     pub redis_url: String,
     pub redis_queue_key: String,
@@ -17,6 +18,10 @@ lazy_static! {
 impl Environment {
     pub fn new() -> Self {
         Self {
+            force_debug_logs: env::var("FORCE_DEBUG_LOGS")
+                .unwrap_or("false".to_string())
+                .parse::<bool>()
+                .expect("FORCE_DEBUG_LOGS must be a boolean"),
             max_evaluations: env::var("EVALUATOR_MAX_EVALUATIONS")
                 .unwrap_or("2".to_string())
                 .parse::<u8>()

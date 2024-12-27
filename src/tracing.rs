@@ -1,10 +1,12 @@
+use crate::environment::ENVIRONMENT;
 use tracing::Level;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 pub fn setup_tracing() {
     let filter = EnvFilter::new(format!(
-        "kontestis_evaluator_v2={}",
-        if cfg!(debug_assertions) {
+        "{}={}",
+        env!("CARGO_PKG_NAME").replace("-", "_"),
+        if cfg!(debug_assertions) || ENVIRONMENT.force_debug_logs {
             Level::DEBUG
         } else {
             Level::INFO
