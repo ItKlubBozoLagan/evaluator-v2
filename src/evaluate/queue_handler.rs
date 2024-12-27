@@ -1,3 +1,4 @@
+use crate::environment::ENVIRONMENT;
 use crate::evaluate::{begin_evaluation, SuccessfulEvaluation, Verdict};
 use crate::messages::{Evaluation, Message};
 use crate::state::AppState;
@@ -7,8 +8,6 @@ use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::sync::broadcast::Receiver;
 use tracing::{debug, error, info, warn};
-
-const REDIS_EVALUATION_PUBSUB: &str = "evaluator_evaluations";
 
 pub async fn handle(
     state: Arc<AppState>,
@@ -25,13 +24,13 @@ pub async fn handle(
 
         let mut used_box_ids = state.used_box_ids.lock().await;
         let used_box_ids_cnt = used_box_ids.len();
-        if state.max_evaluations as usize - used_box_ids_cnt < needed_boxes {
+        if ENVIRONMENT.max_evaluations as usize - used_box_ids_cnt < needed_boxes {
             // TODO: maybe system error to client
             error!("not enough boxes, woop woop");
             continue;
         }
 
-        let available_box_ids = (0..state.max_evaluations)
+        let available_box_ids = (0..ENVIRONMENT.max_evaluations)
             .filter(|id| !used_box_ids.contains(id))
             .take(needed_boxes)
             .collect::<Vec<_>>();
@@ -62,6 +61,7 @@ pub async fn handle(
                 for id in &available_box_ids {
                     used_box_ids.remove(id);
                 }
+
                 drop(used_box_ids)
             });
 
@@ -81,7 +81,7 @@ pub async fn handle(
 
             let publish_result = Handle::current().block_on(async move {
                 redis
-                    .publish::<_, _, ()>(REDIS_EVALUATION_PUBSUB, output_json)
+                    .publish::<_, _, ()>(&*ENVIRONMENT.redis_response_pubsub, output_json)
                     .await
             });
 
@@ -90,7 +90,7 @@ pub async fn handle(
             }
         });
 
-        if state.max_evaluations as usize - used_box_ids_cnt <= 1 {
+        if ENVIRONMENT.max_evaluations as usize - used_box_ids_cnt <= 1 {
             let handle_result = handle.await;
 
             if let Err(err) = handle_result {

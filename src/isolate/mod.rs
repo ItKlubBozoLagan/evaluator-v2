@@ -1,5 +1,6 @@
 pub mod meta;
 
+use crate::environment::ENVIRONMENT;
 use crate::isolate::meta::{ProcessMeta, ProcessStatus};
 use std::collections::HashMap;
 use std::fs::File;
@@ -94,7 +95,9 @@ impl IsolatedProcess {
         isolate_command.arg("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
         isolate_command.arg("--processes");
-        isolate_command.arg("--cg");
+        if ENVIRONMENT.run_with_cgroups {
+            isolate_command.arg("--cg");
+        }
 
         isolate_command.arg("--wall-time");
         isolate_command.arg(format!(
@@ -110,7 +113,11 @@ impl IsolatedProcess {
         isolate_command.arg("--extra-time");
         isolate_command.arg(format!("{:.2}", extra_time));
 
-        isolate_command.arg("--cg-mem");
+        if ENVIRONMENT.run_with_cgroups {
+            isolate_command.arg("--cg-mem");
+        } else {
+            isolate_command.arg("--mem");
+        }
         isolate_command.arg(format!("{}", limits.memory_limit));
 
         isolate_command.arg("--meta");
@@ -219,18 +226,22 @@ impl IsolatedProcess {
         isolate_command.arg("--box-id");
         isolate_command.arg(format!("{}", self.box_id));
 
-        isolate_command.arg("--quota");
-        isolate_command.arg(format!(
-            "{},{}",
-            MAX_DISK_QUOTA_BLOCKS,
-            if self.command_meta.system {
-                MAX_DISK_QUOTA_INODES_SYSTEM
-            } else {
-                MAX_DISK_QUOTA_INODES
-            }
-        ));
+        if ENVIRONMENT.run_with_quotas {
+            isolate_command.arg("--quota");
+            isolate_command.arg(format!(
+                "{},{}",
+                MAX_DISK_QUOTA_BLOCKS,
+                if self.command_meta.system {
+                    MAX_DISK_QUOTA_INODES_SYSTEM
+                } else {
+                    MAX_DISK_QUOTA_INODES
+                }
+            ));
+        }
 
-        isolate_command.arg("--cg");
+        if ENVIRONMENT.run_with_cgroups {
+            isolate_command.arg("--cg");
+        }
 
         isolate_command.arg("--init");
 
@@ -262,7 +273,9 @@ impl IsolatedProcess {
         isolate_command.arg("--box-id");
         isolate_command.arg(format!("{}", self.box_id));
 
-        isolate_command.arg("--cg");
+        if ENVIRONMENT.run_with_cgroups {
+            isolate_command.arg("--cg");
+        }
 
         isolate_command.arg("--cleanup");
 

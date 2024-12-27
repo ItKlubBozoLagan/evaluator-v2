@@ -1,16 +1,17 @@
+use crate::environment::ENVIRONMENT;
 use crate::messages::Message;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
-use ::tracing::info;
 use std::collections::HashSet;
-use std::env;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use ::tracing::info;
 
 mod messages;
 mod state;
 mod tracing;
 
+mod environment;
 mod evaluate;
 mod isolate;
 mod util;
@@ -34,20 +35,10 @@ async fn entrypoint() -> anyhow::Result<()> {
     info!("Starting...");
 
     let state = Arc::new(AppState {
-        redis_queue_key: "evaluator_msg_queue".to_string(),
-        max_evaluations: std::cmp::max(
-            env::var("EVALUATOR_MAX_EVALUATIONS")
-                .unwrap_or("2".to_string())
-                .parse::<u8>()
-                .expect("EVALUATOR_MAX_EVALUATIONS must be a number"),
-            2,
-        ),
         used_box_ids: Mutex::from(HashSet::new()),
     });
 
-    let redis_url = env::var("REDIS_URL").unwrap_or("redis://localhost:6379".to_string());
-
-    let client = redis::Client::open(redis_url)?;
+    let client = redis::Client::open(&*ENVIRONMENT.redis_url)?;
 
     let (tx, _) = tokio::sync::broadcast::channel::<Message>(16);
 
@@ -59,10 +50,9 @@ async fn entrypoint() -> anyhow::Result<()> {
 
     info!("Started");
 
-    info!("Using max evaluations: {}", state.max_evaluations);
+    info!("Using max evaluations: {}", ENVIRONMENT.max_evaluations);
 
-    messages::handler::handle_messages(state.clone(), client.get_connection_manager().await?, tx)
-        .await;
+    messages::handler::handle_messages(client.get_connection_manager().await?, tx).await;
 
     let _ = evaluation_handler.await;
 
