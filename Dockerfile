@@ -1,4 +1,4 @@
-FROM ubuntu:latest AS isolate-build
+FROM debian:bookworm AS isolate-build
 
 WORKDIR /opt
 
@@ -10,9 +10,9 @@ WORKDIR /opt/isolate
 
 RUN make isolate isolate-cg-keeper
 
-FROM ubuntu:latest 
+FROM debian:bookworm 
 
-#RUN echo "deb http://deb.debian.org/debian testing main" >> /etc/apt/sources.list
+RUN echo "deb http://deb.debian.org/debian testing main" >> /etc/apt/sources.list
 
 RUN apt-get update && apt-get -y install python3 gcc g++ rustc openjdk-17-jdk
 
