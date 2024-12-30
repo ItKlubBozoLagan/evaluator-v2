@@ -48,5 +48,5 @@ jobs:
         with:
           push: true
           platform: linux/amd64
-          tags: eu.gcr.io/speedy-baton-368023/kontestis-evaluator-rs
+          tags: eu.gcr.io/speedy-baton-368023/kontestis-evaluator-rs:latest
 
