@@ -1,0 +1,15 @@
+# Used in development
+
+services:
+  evaluator:
+    build: .
+    privileged: true
+    tty: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUN_WITH_CGROUPS=true
+      - RUN_WITH_QUOTAS=false
+      # expects local redis
+      - REDIS_URL=redis://host.docker.internal:6379
+
