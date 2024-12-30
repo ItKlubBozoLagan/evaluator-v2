@@ -2,7 +2,8 @@ FROM debian:bookworm AS isolate-build
 
 WORKDIR /opt
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install git gcc pkg-config make libcap-dev libsystemd-dev
+RUN apt-get update && \ 
+    apt-get -y install git gcc pkg-config make libcap-dev libsystemd-dev
 
 RUN git clone https://github.com/ioi/isolate
 
@@ -14,7 +15,8 @@ FROM debian:bookworm
 
 RUN echo "deb http://deb.debian.org/debian testing main" >> /etc/apt/sources.list
 
-RUN apt-get update && apt-get -y install python3 gcc g++ rustc openjdk-17-jdk
+RUN apt-get update && \
+    apt-get -y install python3 gcc g++ rustc openjdk-17-jdk golang
 
 COPY --from=isolate-build /opt/isolate/isolate /usr/local/bin/isolate
 COPY --from=isolate-build /opt/isolate/isolate-cg-keeper /usr/local/bin/isolate-cg-keeper
@@ -24,7 +26,7 @@ WORKDIR /app
 
 COPY ./target/release/kontestis-evaluator-v2 /app/evaluator
 
-COPY docker-entry.sh /app/docker-entry.sh
-RUN chmod +x /app/docker-entry.sh
+COPY ./.docker/* /app/docker/
+RUN chmod +x /app/docker/*.sh
 
-CMD ["./docker-entry.sh"]
+CMD ["/app/docker/entry.sh"]
