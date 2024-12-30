@@ -18,6 +18,7 @@ jobs:
 
       - id: auth
         name: Autenticate with GCP
+        uses: google-github-actions/auth@v1
         with:
           token_format: "access_token"
           workload_identity_provider: "projects/953907026294/locations/global/workloadIdentityPools/kontestis-actions/providers/kontestis-provider"
