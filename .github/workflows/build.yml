@@ -1,0 +1,44 @@
+name: "🐳 Build"
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: "🐳 Build"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: "read"
+      id-token: "write"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - id: auth
+        name: Autenticate with GCP
+        with:
+          token_format: "access_token"
+          workload_identity_provider: "projects/953907026294/locations/global/workloadIdentityPools/kontestis-actions/providers/kontestis-provider"
+          service_account: "github-actions@speedy-baton-368023.iam.gserviceaccount.com"
+
+      - name: Cache Docker
+        uses: actions/cache@v2
+        with:
+          path: /var/lib/docker
+          key: docker-${{ runner.os }}
+
+      - name: Login to GCP container registry
+        uses: docker/login-action@v2
+        with:
+          registry: eu.gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Build image
+        run: docker build -t eu.gcr.io/speedy-baton-368023/kontestis-evaluator-rs .
+
+      - name: Push image
+        run: docker push eu.gcr.io/speedy-baton-368023/kontestis-evaluator-rs
+
