@@ -12,6 +12,7 @@ jobs:
     permissions:
       contents: "read"
       id-token: "write"
+      packages: "write"
     env:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
