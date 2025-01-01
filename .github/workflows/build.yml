@@ -56,5 +56,5 @@ jobs:
           push: true
           context: .
           platform: linux/amd64
-          tags: eu.gcr.io/speedy-baton-368023/kontestis-evaluator-rs:latest,ghcr.io/itklubbozolagan/kontestis-backend:latest
+          tags: eu.gcr.io/speedy-baton-368023/kontestis-evaluator-rs:latest,ghcr.io/itklubbozolagan/kontestis-evaluator-rs:latest
 
