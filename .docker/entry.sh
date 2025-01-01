@@ -2,7 +2,7 @@
 
 set -ueo pipefail
 
-CG_SELF=$(cat /proc/self/cgroup | tail -c+4)
+CG_SELF=$(cat /proc/self/cgroup | grep "0::" | tail -c+4)
 CG_ROOT="/sys/fs/cgroup$CG_SELF"
 
 ISOLATE_CG_FILE="/run/isolate/cgroup"
