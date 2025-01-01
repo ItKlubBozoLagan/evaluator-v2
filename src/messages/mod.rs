@@ -84,6 +84,12 @@ pub struct Testcase {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub enum SystemMessage {
+    Exit,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub enum Message {
     BeginEvaluation(Evaluation),
+    System(SystemMessage),
 }

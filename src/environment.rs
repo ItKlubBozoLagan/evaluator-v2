@@ -9,6 +9,7 @@ pub struct Environment {
     pub redis_response_pubsub: String,
     pub run_with_cgroups: bool,
     pub run_with_quotas: bool,
+    pub exit_on_empty_queue: bool,
 }
 
 lazy_static! {
@@ -37,6 +38,10 @@ impl Environment {
                 .expect("RUN_WITH_CGROUPS must be a boolean"),
             run_with_quotas: env::var("RUN_WITH_QUOTAS")
                 .unwrap_or("true".to_string())
+                .parse::<bool>()
+                .expect("RUN_WITH_CGROUPS must be a boolean"),
+            exit_on_empty_queue: env::var("EXIT_ON_EMPTY_QUEUE")
+                .unwrap_or("false".to_string())
                 .parse::<bool>()
                 .expect("RUN_WITH_CGROUPS must be a boolean"),
         }

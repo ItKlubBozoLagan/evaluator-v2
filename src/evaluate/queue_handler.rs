@@ -1,6 +1,6 @@
 use crate::environment::ENVIRONMENT;
 use crate::evaluate::{begin_evaluation, SuccessfulEvaluation, Verdict};
-use crate::messages::{Evaluation, Message};
+use crate::messages::{Evaluation, Message, SystemMessage};
 use crate::state::AppState;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
@@ -14,7 +14,19 @@ pub async fn handle(
     mut rx: Receiver<Message>,
     redis_connection: ConnectionManager,
 ) {
-    while let Ok(Message::BeginEvaluation(evaluation)) = rx.recv().await {
+    while let Ok(
+        message @ Message::BeginEvaluation(_) | message @ Message::System(SystemMessage::Exit),
+    ) = rx.recv().await
+    {
+        if let Message::System(SystemMessage::Exit) = message {
+            info!("Received system exit, stopping evaluation handler");
+            break;
+        }
+
+        let Message::BeginEvaluation(evaluation) = message else {
+            unreachable!();
+        };
+
         debug!("got evaluation request: {evaluation:#?}");
 
         let needed_boxes = match evaluation {
