@@ -4,6 +4,7 @@
 A built release binary is needed for the docker build to work
 ```sh
 cargo build --release
+docker build -t kontestis-evaluator-v2 .
 ```
 
 ```sh
