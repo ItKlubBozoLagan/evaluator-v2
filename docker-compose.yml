@@ -10,6 +10,7 @@ services:
     environment:
       - RUN_WITH_CGROUPS=true
       - RUN_WITH_QUOTAS=false
+      - FORCE_DEBUG_LOGS=true
       # expects local redis
       - REDIS_URL=redis://host.docker.internal:6379
 
