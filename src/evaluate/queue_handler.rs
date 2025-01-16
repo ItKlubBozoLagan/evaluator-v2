@@ -3,8 +3,9 @@ use crate::evaluate::{begin_evaluation, SuccessfulEvaluation, Verdict};
 use crate::messages::{Evaluation, Message, SystemMessage};
 use crate::state::AppState;
 use redis::aio::ConnectionManager;
-use redis::AsyncCommands;
+use redis::{AsyncCommands, RedisError};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::runtime::Handle;
 use tokio::sync::broadcast::Receiver;
 use tracing::{debug, error, info, warn};
@@ -91,10 +92,15 @@ pub async fn handle(
             let output_json =
                 serde_json::to_string(result).expect("evaluation to json should have worked");
 
+            // maximum hold of 2.8 seconds (400ms + 800ms + 1600ms)
             let publish_result = Handle::current().block_on(async move {
-                redis
-                    .publish::<_, _, ()>(&*ENVIRONMENT.redis_response_pubsub, output_json)
-                    .await
+                publish_with_backoff(
+                    &mut redis,
+                    &ENVIRONMENT.redis_response_pubsub,
+                    &output_json,
+                    4,
+                )
+                .await
             });
 
             if let Err(err) = publish_result {
@@ -107,6 +113,34 @@ pub async fn handle(
 
             if let Err(err) = handle_result {
                 warn!("Execution handle failed: {err}");
+            }
+        }
+    }
+}
+
+pub async fn publish_with_backoff(
+    redis: &mut ConnectionManager,
+    channel: &str,
+    data: &str,
+    attempts: u8,
+) -> Result<(), RedisError> {
+    let mut iter: u32 = 0;
+    loop {
+        let result = redis.publish::<_, _, ()>(channel, data).await;
+
+        match result {
+            Ok(_) => return Ok(()),
+            Err(err) => {
+                if iter >= (attempts + 1) as u32 {
+                    return Err(err);
+                }
+
+                debug!(
+                    "Failed to publish to redis, waiting for {:?}",
+                    400 * Duration::from_millis(2u64.pow(iter))
+                );
+                tokio::time::sleep(400 * Duration::from_millis(2u64.pow(iter))).await;
+                iter += 1;
             }
         }
     }
