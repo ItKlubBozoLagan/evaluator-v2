@@ -124,24 +124,27 @@ pub async fn publish_with_backoff(
     data: &str,
     attempts: u8,
 ) -> Result<(), RedisError> {
-    let mut iter: u32 = 0;
+    let mut iter: u8 = 0;
     loop {
         let result = redis.publish::<_, _, ()>(channel, data).await;
 
-        match result {
+        let err = match result {
             Ok(_) => return Ok(()),
-            Err(err) => {
-                if iter >= (attempts + 1) as u32 {
-                    return Err(err);
-                }
+            Err(err) => err,
+        };
 
-                debug!(
-                    "Failed to publish to redis, waiting for {:?}",
-                    400 * Duration::from_millis(2u64.pow(iter))
-                );
-                tokio::time::sleep(400 * Duration::from_millis(2u64.pow(iter))).await;
-                iter += 1;
-            }
+        if iter + 1 >= attempts {
+            return Err(err);
         }
+
+        let wait_duration = 400 * Duration::from_millis(2u64.pow(iter as u32));
+
+        debug!(
+            "Failed to publish to redis, waiting for {:?}",
+            wait_duration
+        );
+
+        tokio::time::sleep(wait_duration).await;
+        iter += 1;
     }
 }
