@@ -284,6 +284,7 @@ dependencies = [
  "libc",
  "libseccomp",
  "libseccomp-sys",
+ "log",
  "nix",
  "rand",
  "redis",

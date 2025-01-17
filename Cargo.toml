@@ -18,5 +18,6 @@ libc = "0.2.155"
 libseccomp = "0.3.0"
 libseccomp-sys = "0.2.1"
 rand = "0.8.5"
-nix = "0.29.0"
+nix = { version = "0.29.0", features = ["fs"] }
 lazy_static = "1.5.0"
+log = "0.4.22"
