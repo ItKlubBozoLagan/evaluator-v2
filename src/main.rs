@@ -52,9 +52,7 @@ async fn start() -> anyhow::Result<()> {
 async fn entrypoint() -> anyhow::Result<()> {
     info!("Starting...");
 
-    if Environment::init().is_err() {
-        error!("Error initializing environment");
-    }
+    Environment::init().map_err(|_| anyhow::anyhow!("Error initializing environment"))?;
 
     let state = Arc::new(AppState {
         used_box_ids: Mutex::from(HashSet::new()),
