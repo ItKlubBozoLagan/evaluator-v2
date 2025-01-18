@@ -5,7 +5,7 @@ use crate::tracing::setup_tracing;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use ::tracing::info;
+use ::tracing::{error, info};
 
 mod messages;
 mod state;
@@ -52,7 +52,10 @@ async fn start() -> anyhow::Result<()> {
 async fn entrypoint() -> anyhow::Result<()> {
     info!("Starting...");
 
-    Environment::init().map_err(|_| anyhow::anyhow!("Error initializing environment"))?;
+    if Environment::init().is_err() {
+        error!("Error initializing environment");
+        return Err(anyhow::anyhow!("Error initializing environment"));
+    }
 
     let state = Arc::new(AppState {
         used_box_ids: Mutex::from(HashSet::new()),
