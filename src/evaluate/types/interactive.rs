@@ -79,7 +79,7 @@ fn write_to_fd_safe(fd: BorrowedFd, input: &[u8]) -> Result<WriteHandle, Interac
         fd.as_raw_fd(),
         nix::fcntl::FcntlArg::F_SETPIPE_SZ(needed_pipe_buf as i32),
     )?;
-    debug!("increasing pipe buf size to {}", needed_pipe_buf);
+    debug!("increasing pipe buffer size to {}", needed_pipe_buf);
 
     if input_size < needed_pipe_buf {
         nix::unistd::write(fd, input)?;
