@@ -1,6 +1,16 @@
-use lazy_static::lazy_static;
-use std::env;
+use once_cell::sync::OnceCell;
+use std::cmp::min;
+use std::{env, fs};
 
+// 2 MiB
+const HARD_PIPE_MAX_SIZE_LIMIT: usize = 2 << 20;
+
+#[derive(Debug)]
+pub struct SystemEnvironment {
+    pub pipe_max_size: usize,
+}
+
+#[derive(Debug)]
 pub struct Environment {
     pub force_debug_logs: bool,
     pub max_evaluations: u8,
@@ -10,14 +20,20 @@ pub struct Environment {
     pub run_with_cgroups: bool,
     pub run_with_quotas: bool,
     pub exit_on_empty_queue: bool,
+
+    pub system_environment: SystemEnvironment,
 }
 
-lazy_static! {
-    pub static ref ENVIRONMENT: Environment = Environment::new();
-}
+static ENVIRONMENT: OnceCell<Environment> = OnceCell::new();
 
 impl Environment {
-    pub fn new() -> Self {
+    fn new() -> Self {
+        let system_environment = SystemEnvironment {
+            pipe_max_size: read_pipe_max_size()
+                .map(|it| min(it, HARD_PIPE_MAX_SIZE_LIMIT))
+                .expect("/proc/sys/fs/pipe-max-size not found"),
+        };
+
         Self {
             force_debug_logs: env::var("FORCE_DEBUG_LOGS")
                 .unwrap_or("false".to_string())
@@ -44,6 +60,22 @@ impl Environment {
                 .unwrap_or("false".to_string())
                 .parse::<bool>()
                 .expect("RUN_WITH_CGROUPS must be a boolean"),
+            system_environment,
         }
     }
+
+    pub fn init() -> Result<(), Environment> {
+        ENVIRONMENT.set(Environment::new())
+    }
+
+    pub fn get() -> &'static Environment {
+        ENVIRONMENT.get_or_init(Environment::new)
+    }
+}
+
+fn read_pipe_max_size() -> anyhow::Result<usize> {
+    let content = fs::read_to_string("/proc/sys/fs/pipe-max-size")?;
+    let pipe_max_size: usize = content.trim().parse()?;
+
+    Ok(pipe_max_size)
 }

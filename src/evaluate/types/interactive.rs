@@ -1,3 +1,4 @@
+use crate::environment::Environment;
 use crate::evaluate::compilation::{process_compilation, CompilationError};
 use crate::evaluate::output::CheckerResult;
 use crate::evaluate::runnable::{ProcessRunError, RunnableProcess};
@@ -7,6 +8,7 @@ use crate::isolate::{IsolateError, IsolateLimits, ProcessInput};
 use crate::messages::{InteractiveEvaluation, Testcase};
 use crate::util::random_bytes;
 use log::warn;
+use std::cmp::min;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -33,77 +35,74 @@ enum InteractError {
 
     #[error("Isolate error: {0}")]
     IsolateError(#[from] IsolateError),
-
-    #[error("{0}")]
-    Custom(String),
 }
 
-fn read_pipe_max_size() -> Result<usize, InteractError> {
-    let content = fs::read_to_string("/proc/sys/fs/pipe-max-size")?;
-    let pipe_max_size: usize = content.trim().parse()?;
-
-    Ok(pipe_max_size)
+#[derive(Debug)]
+enum WriteHandle {
+    Direct,
+    Async(JoinHandle<()>),
 }
 
-async fn write_to_fd_async(_fd: BorrowedFd<'_>, _input: &[u8]) {
-    todo!()
+impl Drop for WriteHandle {
+    fn drop(&mut self) {
+        let WriteHandle::Async(handle) = self else {
+            return;
+        };
+
+        handle.abort();
+    }
 }
 
-// 2MB
-const HARD_PIPE_MAX_SIZE_LIMIT: usize = 2 << 20;
-
-fn write_to_fd_safe(fd: BorrowedFd, input: &[u8]) -> Result<Option<JoinHandle<()>>, InteractError> {
+fn write_to_fd_safe(fd: BorrowedFd, input: &[u8]) -> Result<WriteHandle, InteractError> {
     let current_pipe_buf_size =
         nix::fcntl::fcntl(fd.as_raw_fd(), nix::fcntl::FcntlArg::F_GETPIPE_SZ)?;
 
-    debug!("input size: {}", input.len());
-    debug!("current pipe buf size: {}", current_pipe_buf_size);
-
     let input_size = input.len();
 
-    if input.len() < (current_pipe_buf_size as usize) {
-        debug!("writing all directly");
-
+    if input_size < (current_pipe_buf_size as usize) {
         nix::unistd::write(fd, input)?;
         nix::unistd::write(fd, b"\n")?;
 
-        return Ok(None);
+        return Ok(WriteHandle::Direct);
     }
 
-    // handle in separate thread
-    let pipe_max_size = read_pipe_max_size();
+    let needed_pipe_buf = min(
+        input_size + 1,
+        Environment::get().system_environment.pipe_max_size,
+    );
 
-    let pipe_max_size = match pipe_max_size {
-        Ok(size) => Some(size),
-        Err(err) => {
-            warn!("failed to read pipe max size: {}", err);
-            None
-        }
-    };
+    // 2 cases from this point:
+    //  - input is within bounds of pipe_max_size so extend pipe to that, write directly
+    //  - input is larger than pipe_max_size, write async,
+    //      extend pipe to pipe_max_size (or input_size if pipe_max_size is not available)
+    nix::fcntl::fcntl(
+        fd.as_raw_fd(),
+        nix::fcntl::FcntlArg::F_SETPIPE_SZ(needed_pipe_buf as i32),
+    )?;
+    debug!("increasing pipe buf size to {}", needed_pipe_buf);
 
-    if let Some(pipe_max_size) = pipe_max_size {
-        if pipe_max_size <= HARD_PIPE_MAX_SIZE_LIMIT && input_size < pipe_max_size {
-            debug!("increasing pipe buf size to {}", input_size);
-            nix::fcntl::fcntl(
-                fd.as_raw_fd(),
-                nix::fcntl::FcntlArg::F_SETPIPE_SZ(input_size as i32),
-            )?;
+    if input_size < needed_pipe_buf {
+        nix::unistd::write(fd, input)?;
+        nix::unistd::write(fd, b"\n")?;
 
-            nix::unistd::write(fd, input)?;
-            nix::unistd::write(fd, b"\n")?;
-
-            return Ok(None);
-        }
-    };
-
-    debug!("writing in separate thread");
+        return Ok(WriteHandle::Direct);
+    }
 
     let fd_clone = fd.try_clone_to_owned()?;
     let input_clone = input.to_vec();
-    let handle = Handle::current()
-        .spawn(async move { write_to_fd_async(fd_clone.as_fd(), &input_clone).await });
+    let handle = Handle::current().spawn(async move {
+        // handle directly, this handle is killed as soon as both interactor and client are done
 
-    Ok(Some(handle))
+        if let Err(err) = nix::unistd::write(&fd_clone, &input_clone) {
+            warn!("failed to async write to pipe: {}", err);
+        };
+
+        if let Err(err) = nix::unistd::write(&fd_clone, b"\n") {
+            warn!("failed to async write to pipe: {}", err);
+        };
+    });
+
+    Ok(WriteHandle::Async(handle))
 }
 
 fn interact_with_testcase(
@@ -118,12 +117,6 @@ fn interact_with_testcase(
     let (process_input, interactor_output) = nix::unistd::pipe()?;
 
     let write_handle = write_to_fd_safe(process_output.as_fd(), testcase.input.as_bytes())?;
-
-    if write_handle.is_some() {
-        return Err(InteractError::Custom(
-            "testcase input too large, async writing not supported yet".to_string(),
-        ));
-    }
 
     let mut interactor = interactor.just_run(
         interactor_box_id,
@@ -141,6 +134,8 @@ fn interact_with_testcase(
 
     let process_output = process.wait_for_output()?;
     let _ = interactor.wait_for_output()?;
+
+    drop(write_handle);
 
     let process_meta = process.load_meta()?;
 

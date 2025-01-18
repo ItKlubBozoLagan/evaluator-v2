@@ -1,4 +1,4 @@
-use crate::environment::ENVIRONMENT;
+use crate::environment::Environment;
 use tracing::Level;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
@@ -6,7 +6,7 @@ pub fn setup_tracing() {
     let filter = EnvFilter::new(format!(
         "{}={}",
         env!("CARGO_PKG_NAME").replace("-", "_"),
-        if cfg!(debug_assertions) || ENVIRONMENT.force_debug_logs {
+        if cfg!(debug_assertions) || Environment::get().force_debug_logs {
             Level::DEBUG
         } else {
             Level::INFO

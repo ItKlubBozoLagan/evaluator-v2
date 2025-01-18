@@ -1,4 +1,4 @@
-use crate::environment::ENVIRONMENT;
+use crate::environment::Environment;
 use crate::messages::{Message, SystemMessage};
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
@@ -41,8 +41,8 @@ pub async fn handle_messages(
 async fn do_handle_message(
     connection: &mut ConnectionManager,
 ) -> Result<Option<Message>, MessageHandlerError> {
-    if ENVIRONMENT.exit_on_empty_queue {
-        let in_queue: usize = connection.llen(&ENVIRONMENT.redis_queue_key).await?;
+    if Environment::get().exit_on_empty_queue {
+        let in_queue: usize = connection.llen(&Environment::get().redis_queue_key).await?;
 
         if in_queue == 0 {
             info!("Work queue empty, broadcasting exit");
@@ -50,7 +50,9 @@ async fn do_handle_message(
         }
     }
 
-    let val: Option<(String, String)> = connection.blpop(&ENVIRONMENT.redis_queue_key, 0.0).await?;
+    let val: Option<(String, String)> = connection
+        .blpop(&Environment::get().redis_queue_key, 0.0)
+        .await?;
 
     let Some((_, val)) = val else {
         return Ok(None);

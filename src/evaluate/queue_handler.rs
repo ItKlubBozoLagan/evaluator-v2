@@ -1,4 +1,4 @@
-use crate::environment::ENVIRONMENT;
+use crate::environment::Environment;
 use crate::evaluate::{begin_evaluation, SuccessfulEvaluation, Verdict};
 use crate::messages::{Evaluation, Message, SystemMessage};
 use crate::state::AppState;
@@ -37,13 +37,13 @@ pub async fn handle(
 
         let mut used_box_ids = state.used_box_ids.lock().await;
         let used_box_ids_cnt = used_box_ids.len();
-        if ENVIRONMENT.max_evaluations as usize - used_box_ids_cnt < needed_boxes {
+        if Environment::get().max_evaluations as usize - used_box_ids_cnt < needed_boxes {
             // TODO: maybe system error to client
             error!("not enough boxes, woop woop");
             continue;
         }
 
-        let available_box_ids = (0..ENVIRONMENT.max_evaluations)
+        let available_box_ids = (0..Environment::get().max_evaluations)
             .filter(|id| !used_box_ids.contains(id))
             .take(needed_boxes)
             .collect::<Vec<_>>();
@@ -96,7 +96,7 @@ pub async fn handle(
             let publish_result = Handle::current().block_on(async move {
                 publish_with_backoff(
                     &mut redis,
-                    &ENVIRONMENT.redis_response_pubsub,
+                    &Environment::get().redis_response_pubsub,
                     &output_json,
                     4,
                 )
@@ -108,7 +108,7 @@ pub async fn handle(
             }
         });
 
-        if ENVIRONMENT.max_evaluations as usize - used_box_ids_cnt <= 1 {
+        if Environment::get().max_evaluations as usize - used_box_ids_cnt <= 1 {
             let handle_result = handle.await;
 
             if let Err(err) = handle_result {

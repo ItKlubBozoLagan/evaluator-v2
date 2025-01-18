@@ -96,7 +96,7 @@ impl OutputChecker {
                 let text_output = text_output.trim();
 
                 // FIXME: legacy
-                text_output.try_into()
+                CheckerResult::try_from(text_output)
             }
             OutputChecker::Raw => {
                 if trim_every_line(output) == trim_every_line(&testcase.output) {

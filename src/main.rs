@@ -1,11 +1,11 @@
-use crate::environment::ENVIRONMENT;
+use crate::environment::Environment;
 use crate::messages::Message;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
-use ::tracing::info;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use ::tracing::{error, info};
 
 mod messages;
 mod state;
@@ -52,11 +52,15 @@ async fn start() -> anyhow::Result<()> {
 async fn entrypoint() -> anyhow::Result<()> {
     info!("Starting...");
 
+    if Environment::init().is_err() {
+        error!("Error initializing environment");
+    }
+
     let state = Arc::new(AppState {
         used_box_ids: Mutex::from(HashSet::new()),
     });
 
-    let client = redis::Client::open(&*ENVIRONMENT.redis_url)?;
+    let client = redis::Client::open(&*Environment::get().redis_url)?;
 
     let (tx, _) = tokio::sync::broadcast::channel::<Message>(16);
 
@@ -68,7 +72,10 @@ async fn entrypoint() -> anyhow::Result<()> {
 
     info!("Started");
 
-    info!("Using max evaluations: {}", ENVIRONMENT.max_evaluations);
+    info!(
+        "Using max evaluations: {}",
+        Environment::get().max_evaluations
+    );
 
     messages::handler::handle_messages(client.get_connection_manager().await?, tx).await;
 
