@@ -5,7 +5,7 @@ use crate::tracing::setup_tracing;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use ::tracing::{error, info};
+use ::tracing::info;
 
 mod messages;
 mod state;
