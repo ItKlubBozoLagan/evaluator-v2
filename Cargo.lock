@@ -286,7 +286,6 @@ dependencies = [
  "libseccomp-sys",
  "log",
  "nix",
- "once_cell",
  "rand",
  "redis",
  "serde",

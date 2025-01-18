@@ -1,6 +1,6 @@
-use once_cell::sync::OnceCell;
 use std::cmp::min;
 use std::{env, fs};
+use tokio::sync::{OnceCell, SetError};
 
 // 2 MiB
 const HARD_PIPE_MAX_SIZE_LIMIT: usize = 2 << 20;
@@ -24,7 +24,7 @@ pub struct Environment {
     pub system_environment: SystemEnvironment,
 }
 
-static ENVIRONMENT: OnceCell<Environment> = OnceCell::new();
+static ENVIRONMENT: OnceCell<Environment> = OnceCell::const_new();
 
 impl Environment {
     fn new() -> Self {
@@ -64,12 +64,15 @@ impl Environment {
         }
     }
 
-    pub fn init() -> Result<(), Environment> {
+    pub fn init() -> Result<(), SetError<Environment>> {
         ENVIRONMENT.set(Environment::new())
     }
 
     pub fn get() -> &'static Environment {
-        ENVIRONMENT.get_or_init(Environment::new)
+        match ENVIRONMENT.get() {
+            Some(env) => env,
+            None => panic!("Environment not initialized"),
+        }
     }
 }
 

@@ -17,6 +17,11 @@ mod isolate;
 mod util;
 
 fn main() -> anyhow::Result<()> {
+    if let Err(err) = Environment::init() {
+        error!("Error initializing environment: {err}");
+        return Err(anyhow::anyhow!("Error initializing environment"));
+    }
+
     setup_tracing();
 
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -51,11 +56,6 @@ async fn start() -> anyhow::Result<()> {
 
 async fn entrypoint() -> anyhow::Result<()> {
     info!("Starting...");
-
-    if Environment::init().is_err() {
-        error!("Error initializing environment");
-        return Err(anyhow::anyhow!("Error initializing environment"));
-    }
 
     let state = Arc::new(AppState {
         used_box_ids: Mutex::from(HashSet::new()),
