@@ -78,9 +78,9 @@ pub async fn handle(
                 drop(used_box_ids)
             });
 
-            let result = match &res {
+            let result = match res {
                 Ok(result) => result,
-                Err(err) => &SuccessfulEvaluation {
+                Err(err) => SuccessfulEvaluation {
                     evaluation_id: evaluation.get_evaluation_id(),
                     verdict: Verdict::CompilationError(err.to_string()),
                     testcases: vec![],
@@ -90,7 +90,7 @@ pub async fn handle(
             };
 
             let output_json =
-                serde_json::to_string(result).expect("evaluation to json should have worked");
+                serde_json::to_string(&result).expect("evaluation to json should have worked");
 
             // maximum hold of 2.8 seconds (400ms + 800ms + 1600ms)
             let publish_result = Handle::current().block_on(async move {
