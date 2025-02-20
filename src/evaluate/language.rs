@@ -76,8 +76,20 @@ impl EvaluationLanguage {
                     .collect(),
                     util::ETC_JAVA_DIRECTORIES.clone(),
                 ))
+            },
+            E::GnuAsmX86Linux => {
+                Some((
+                    "/usr/bin/gcc",
+                    vec![
+                        "-x", "assembler", "-static", "-nostdlib", "-no-pie", "-o", out_file, "-",
+                    ]
+                        .into_iter()
+                        .map(String::from)
+                        .collect(),
+                    vec![],
+                ))
             }
-            _ => None,
+            E::Python => None,
         }
     }
 }

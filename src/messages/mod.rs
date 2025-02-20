@@ -6,7 +6,7 @@ pub mod handler;
 pub enum ProblemType {}
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum EvaluationLanguage {
     C,
     Cpp,
@@ -14,7 +14,7 @@ pub enum EvaluationLanguage {
     Rust,
     Java,
     Go,
-    None,
+    GnuAsmX86Linux,
 }
 
 impl Display for EvaluationLanguage {
