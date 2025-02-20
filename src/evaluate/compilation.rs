@@ -18,7 +18,7 @@ pub enum CompilationError {
     IoError(#[from] std::io::Error),
 
     #[error("Failed to compile: {0}")]
-    CompilationError(String),
+    CompilationProcessError(String),
 
     #[error("Tried to compile a non-compiled language: ${0}")]
     UnsupportedLanguage(EvaluationLanguage),
@@ -47,7 +47,7 @@ fn compile(
     language: &EvaluationLanguage,
     box_id: u8,
 ) -> Result<CompilationResult, CompilationError> {
-    let output_file = util::random_bytes(8);
+    let output_file = util::general::random_bytes(8);
     let file_path = PathBuf::from("/tmp").join(&output_file);
 
     let (compiler, args, dir_mounts) = language
@@ -77,7 +77,7 @@ fn compile(
     if !output.status.success() {
         process.cleanup_and_reset()?;
 
-        return Err(CompilationError::CompilationError(format!(
+        return Err(CompilationError::CompilationProcessError(format!(
             "\n{}",
             String::from_utf8_lossy(&output.stderr)
         )));

@@ -2,10 +2,10 @@ pub mod meta;
 
 use crate::environment::Environment;
 use crate::isolate::meta::{ProcessMeta, ProcessStatus};
+use crate::util;
+use crate::util::fd::SafeFdWriteError;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Write;
-use std::os::fd::OwnedFd;
+use std::os::fd::{AsFd, OwnedFd};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -29,9 +29,6 @@ pub enum IsolateError {
     #[error("IO Error: {0}")]
     IOError(#[from] std::io::Error),
 
-    #[error("Failed to write stdin into file: {0}")]
-    StdinIntoFileError(String),
-
     #[error("Process is already/still running")]
     ProcessRunning,
 
@@ -40,6 +37,12 @@ pub enum IsolateError {
 
     #[error("Isolate init failed: {0}")]
     InitFailed(String),
+
+    #[error("syscall error: {0}")]
+    NixError(#[from] nix::Error),
+
+    #[error("FD write error: {0}")]
+    FdWriteError(#[from] SafeFdWriteError),
 }
 
 #[derive(Debug, Clone)]
@@ -167,10 +170,9 @@ impl IsolatedProcess {
 
         match input {
             ProcessInput::StdIn(stdin) => {
-                Self::write_stdin_to_file(&dir, &stdin)?;
+                let pipe_rx = Self::write_stdin_to_pipe(&stdin)?;
 
-                self.command.arg("--stdin");
-                self.command.arg("/box/.stdin");
+                self.command.stdin(Stdio::from(pipe_rx));
             }
             ProcessInput::Piped(fd) => {
                 self.command.stdin(Stdio::from(fd));
@@ -368,12 +370,9 @@ impl IsolatedProcess {
         let mut child = self
             .running_child
             .take()
-            .ok_or_else(|| IsolateError::ProcessNotRunning)?;
+            .ok_or(IsolateError::ProcessNotRunning)?;
 
-        let child_process = child
-            .child
-            .take()
-            .ok_or_else(|| IsolateError::ProcessNotRunning)?;
+        let child_process = child.child.take().ok_or(IsolateError::ProcessNotRunning)?;
 
         let output = child_process.wait_with_output()?;
 
@@ -386,14 +385,13 @@ impl IsolatedProcess {
         Ok(output)
     }
 
-    fn write_stdin_to_file(dir: &Path, stdin: &[u8]) -> Result<(), IsolateError> {
-        let mut file = File::create(dir.join(".stdin"))
-            .map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
+    fn write_stdin_to_pipe(stdin: &[u8]) -> Result<OwnedFd, IsolateError> {
+        let (rx, tx) = nix::unistd::pipe()?;
 
-        file.write_all(stdin)
-            .map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
+        // FIXME: async handle might get dropped too early, test
+        util::fd::write_to_fd_safe(tx.as_fd(), stdin)?;
 
-        Ok(())
+        Ok(rx)
     }
 }
 

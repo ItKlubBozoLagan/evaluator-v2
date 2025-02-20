@@ -3,7 +3,7 @@ use crate::evaluate::runnable::{ProcessRunError, RunnableProcess};
 use crate::evaluate::Verdict;
 use crate::isolate::{IsolateLimits, ProcessInput};
 use crate::messages::{CheckerData, Testcase};
-use crate::util::random_bytes;
+use crate::util::general::random_bytes;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

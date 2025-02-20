@@ -120,7 +120,7 @@ impl RunnableProcess {
                     system: false,
                 },
                 limits,
-                util::ETC_JAVA_DIRECTORIES.clone(),
+                util::general::ETC_JAVA_DIRECTORIES.clone(),
             )?,
         };
 

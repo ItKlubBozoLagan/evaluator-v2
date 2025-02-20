@@ -74,7 +74,7 @@ impl EvaluationLanguage {
                     .into_iter()
                     .map(String::from)
                     .collect(),
-                    util::ETC_JAVA_DIRECTORIES.clone(),
+                    util::general::ETC_JAVA_DIRECTORIES.clone(),
                 ))
             },
             E::GnuAsmX86Linux => {
