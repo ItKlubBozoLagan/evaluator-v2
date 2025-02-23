@@ -47,7 +47,10 @@ fn interact_with_testcase(
     let (interactor_input, process_output) = nix::unistd::pipe()?;
     let (process_input, interactor_output) = nix::unistd::pipe()?;
 
-    let write_handle = write_to_fd_safe(process_output.as_fd(), testcase.input.as_bytes())?;
+    let write_handle = write_to_fd_safe(
+        process_output.as_fd(),
+        &[testcase.input.as_bytes(), b"\n"].concat(),
+    )?;
 
     let mut interactor = interactor.just_run(
         interactor_box_id,
