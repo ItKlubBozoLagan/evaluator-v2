@@ -5,7 +5,7 @@ use crate::evaluate::{SuccessfulEvaluation, TestcaseResult, Verdict};
 use crate::isolate::meta::ProcessStatus;
 use crate::isolate::{IsolateError, IsolateLimits, ProcessInput};
 use crate::messages::{InteractiveEvaluation, Testcase};
-use crate::util::fd::{write_to_fd_safe, SafeFdWriteError};
+use crate::util::fd::{write_to_fd_safe, LargeWriteStrategy, SafeFdWriteError};
 use crate::util::general::random_bytes;
 use std::fs;
 use std::fs::File;
@@ -50,6 +50,7 @@ fn interact_with_testcase(
     let write_handle = write_to_fd_safe(
         process_output.as_fd(),
         &[testcase.input.as_bytes(), b"\n"].concat(),
+        LargeWriteStrategy::Async,
     )?;
 
     let mut interactor = interactor.just_run(
@@ -119,6 +120,7 @@ fn interact_with_testcase(
                 verdict: Verdict::from(&err),
                 memory: 0,
                 time: 0,
+
                 error: Some(err.to_string()),
             })
         }

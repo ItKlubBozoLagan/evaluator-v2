@@ -17,8 +17,16 @@ pub enum SafeFdWriteError {
 
 #[derive(Debug)]
 pub enum WriteHandle {
+    Ignored,
     Direct,
     Async(JoinHandle<()>),
+}
+
+#[derive(Debug)]
+pub enum LargeWriteStrategy {
+    Async,
+    // TODO: streamline file into this
+    Ignore,
 }
 
 impl Drop for WriteHandle {
@@ -31,7 +39,13 @@ impl Drop for WriteHandle {
     }
 }
 
-pub fn write_to_fd_safe(fd: BorrowedFd, input: &[u8]) -> Result<WriteHandle, SafeFdWriteError> {
+pub fn write_to_fd_safe(
+    fd: BorrowedFd,
+    input: &[u8],
+    strategy: LargeWriteStrategy,
+) -> Result<WriteHandle, SafeFdWriteError> {
+    dbg!(input.len());
+
     let current_pipe_buf_size =
         nix::fcntl::fcntl(fd.as_raw_fd(), nix::fcntl::FcntlArg::F_GETPIPE_SZ)?;
 
@@ -64,13 +78,18 @@ pub fn write_to_fd_safe(fd: BorrowedFd, input: &[u8]) -> Result<WriteHandle, Saf
         return Ok(WriteHandle::Direct);
     }
 
-    let fd_clone = fd.try_clone_to_owned()?;
-    let input_clone = input.to_vec();
-    let handle = Handle::current().spawn(async move {
-        if let Err(err) = nix::unistd::write(&fd_clone, &input_clone) {
-            warn!("failed to async write to pipe: {}", err);
-        };
-    });
+    match strategy {
+        LargeWriteStrategy::Async => {
+            let fd_clone = fd.try_clone_to_owned()?;
+            let input_clone = input.to_vec();
+            let handle = Handle::current().spawn(async move {
+                if let Err(err) = nix::unistd::write(&fd_clone, &input_clone) {
+                    warn!("failed to async write to pipe: {}", err);
+                };
+            });
 
-    Ok(WriteHandle::Async(handle))
+            Ok(WriteHandle::Async(handle))
+        }
+        LargeWriteStrategy::Ignore => Ok(WriteHandle::Ignored),
+    }
 }
