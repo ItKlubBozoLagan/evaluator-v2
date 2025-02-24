@@ -25,7 +25,9 @@ pub enum WriteHandle {
 #[derive(Debug)]
 pub enum LargeWriteStrategy {
     Async,
-    // TODO: streamline file into this
+
+    // if the input is too large, don't do anything and leave writing to the caller
+    //  usually what the caller does is less efficient than what this function does
     Ignore,
 }
 
