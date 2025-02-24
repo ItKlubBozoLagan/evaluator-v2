@@ -74,6 +74,9 @@ fn interact_with_testcase(
 
     let process_meta = process.load_meta()?;
 
+    // TODO: may not work, stdout is connected to interactor
+    let process_stdout = String::from_utf8_lossy(&process_output.stdout).to_string();
+
     // FIXME: repeated
     if !process_output.status.success() {
         process.cleanup_and_reset()?;
@@ -92,6 +95,7 @@ fn interact_with_testcase(
             verdict,
             memory: process_meta.cg_mem_kb,
             time: process_meta.time_ms,
+            output: Some(process_stdout),
             error: Some(String::from_utf8_lossy(&process_output.stderr).to_string()),
         });
     }
@@ -120,7 +124,7 @@ fn interact_with_testcase(
                 verdict: Verdict::from(&err),
                 memory: 0,
                 time: 0,
-
+                output: Some(process_stdout),
                 error: Some(err.to_string()),
             })
         }
@@ -138,6 +142,7 @@ fn interact_with_testcase(
         // TODO: backend most likely wants bytes
         memory: process_meta.cg_mem_kb,
         time: process_meta.time_ms,
+        output: Some(process_stdout),
         error: None,
     })
 }
@@ -175,6 +180,7 @@ pub fn evaluate(
                 verdict: Verdict::Skipped,
                 memory: 0,
                 time: 0,
+                output: None,
                 error: None,
             });
             continue;
@@ -196,6 +202,7 @@ pub fn evaluate(
                 verdict: Verdict::SystemError,
                 time: 0,
                 memory: 0,
+                output: None,
                 error: Some(err.to_string()),
             },
         };

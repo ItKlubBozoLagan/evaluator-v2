@@ -66,6 +66,12 @@ pub enum Evaluation {
     OutputOnly(OutputOnlyEvaluation),
 }
 
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct EvaluationMeta {
+    pub output_queue: String,
+    pub evaluation: Evaluation,
+}
+
 impl Evaluation {
     pub fn get_evaluation_id(&self) -> u64 {
         match self {
@@ -90,6 +96,6 @@ pub enum SystemMessage {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub enum Message {
-    BeginEvaluation(Evaluation),
+    BeginEvaluation(EvaluationMeta),
     System(SystemMessage),
 }

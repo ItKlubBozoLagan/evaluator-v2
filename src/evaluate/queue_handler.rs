@@ -1,11 +1,10 @@
 use crate::environment::Environment;
 use crate::evaluate::{begin_evaluation, SuccessfulEvaluation, Verdict};
-use crate::messages::{Evaluation, Message, SystemMessage};
+use crate::messages::{Evaluation, EvaluationMeta, Message, SystemMessage};
 use crate::state::AppState;
 use redis::aio::ConnectionManager;
-use redis::{AsyncCommands, RedisError};
+use redis::AsyncCommands;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::runtime::Handle;
 use tokio::sync::broadcast::Receiver;
 use tracing::{debug, error, info, warn};
@@ -15,16 +14,17 @@ pub async fn handle(
     mut rx: Receiver<Message>,
     redis_connection: ConnectionManager,
 ) {
-    while let Ok(
-        message @ Message::BeginEvaluation(_) | message @ Message::System(SystemMessage::Exit),
-    ) = rx.recv().await
-    {
+    while let Ok(message) = rx.recv().await {
         if let Message::System(SystemMessage::Exit) = message {
             info!("Received system exit, stopping evaluation handler");
             break;
         }
 
-        let Message::BeginEvaluation(evaluation) = message else {
+        let Message::BeginEvaluation(EvaluationMeta {
+            output_queue,
+            evaluation,
+        }) = message
+        else {
             unreachable!();
         };
 
@@ -92,16 +92,19 @@ pub async fn handle(
             let output_json =
                 serde_json::to_string(&result).expect("evaluation to json should have worked");
 
-            // maximum hold of 2.8 seconds (400ms + 800ms + 1600ms)
-            let publish_result = Handle::current().block_on(async move {
-                publish_with_backoff(
-                    &mut redis,
-                    &Environment::get().redis_response_pubsub,
-                    &output_json,
-                    4,
-                )
-                .await
-            });
+            let publish_result = Handle::current()
+                .block_on(async move { redis.rpush::<_, _, ()>(output_queue, output_json).await });
+
+            // // maximum hold of 2.8 seconds (400ms + 800ms + 1600ms)
+            // let publish_result = Handle::current().block_on(async move {
+            //     publish_with_backoff(
+            //         &mut redis,
+            //         &Environment::get().redis_response_pubsub,
+            //         &output_json,
+            //         4,
+            //     )
+            //     .await
+            // });
 
             if let Err(err) = publish_result {
                 error!("Failed to publish evaluation result: {err}");
@@ -118,33 +121,33 @@ pub async fn handle(
     }
 }
 
-pub async fn publish_with_backoff(
-    redis: &mut ConnectionManager,
-    channel: &str,
-    data: &str,
-    attempts: u8,
-) -> Result<(), RedisError> {
-    let mut iter: u8 = 0;
-    loop {
-        let result = redis.publish::<_, _, ()>(channel, data).await;
-
-        let err = match result {
-            Ok(_) => return Ok(()),
-            Err(err) => err,
-        };
-
-        if iter + 1 >= attempts {
-            return Err(err);
-        }
-
-        let wait_duration = 400 * Duration::from_millis(2u64.pow(iter as u32));
-
-        debug!(
-            "Failed to publish to redis, waiting for {:?}",
-            wait_duration
-        );
-
-        tokio::time::sleep(wait_duration).await;
-        iter += 1;
-    }
-}
+// pub async fn publish_with_backoff(
+//     redis: &mut ConnectionManager,
+//     channel: &str,
+//     data: &str,
+//     attempts: u8,
+// ) -> Result<(), RedisError> {
+//     let mut iter: u8 = 0;
+//     loop {
+//         let result = redis.publish::<_, _, ()>(channel, data).await;
+//
+//         let err = match result {
+//             Ok(_) => return Ok(()),
+//             Err(err) => err,
+//         };
+//
+//         if iter + 1 >= attempts {
+//             return Err(err);
+//         }
+//
+//         let wait_duration = 400 * Duration::from_millis(2u64.pow(iter as u32));
+//
+//         debug!(
+//             "Failed to publish to redis, waiting for {:?}",
+//             wait_duration
+//         );
+//
+//         tokio::time::sleep(wait_duration).await;
+//         iter += 1;
+//     }
+// }

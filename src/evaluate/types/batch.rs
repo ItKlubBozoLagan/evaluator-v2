@@ -28,10 +28,13 @@ fn evaluate_with_testcase(
                 verdict: Verdict::SystemError,
                 memory: 0,
                 time: 0,
+                output: None,
                 error: Some(err.to_string()),
             }
         }
     };
+
+    let output_str = String::from_utf8_lossy(&output.stdout).to_string();
 
     // FIXME: repeated
     if !output.status.success() {
@@ -48,11 +51,10 @@ fn evaluate_with_testcase(
             verdict,
             memory: meta.cg_mem_kb,
             time: meta.time_ms,
+            output: Some(output_str),
             error: Some(String::from_utf8_lossy(&output.stderr).to_string()),
         };
     }
-
-    let output_str = String::from_utf8_lossy(&output.stdout).to_string();
 
     let check_result = match checker.check(box_id, &output_str, testcase) {
         Ok(result) => result,
@@ -62,6 +64,7 @@ fn evaluate_with_testcase(
                 verdict: (&err).into(),
                 memory: 0,
                 time: 0,
+                output: Some(output_str),
                 error: Some(err.to_string()),
             }
         }
@@ -78,6 +81,7 @@ fn evaluate_with_testcase(
         verdict,
         memory: meta.cg_mem_kb,
         time: meta.time_ms,
+        output: Some(output_str),
         error: None,
     }
 }
@@ -106,6 +110,7 @@ pub fn evaluate(
                 verdict: Verdict::Skipped,
                 memory: 0,
                 time: 0,
+                output: None,
                 error: None,
             });
             continue;

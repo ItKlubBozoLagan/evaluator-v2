@@ -24,6 +24,7 @@ pub struct TestcaseResult {
     pub verdict: Verdict,
     pub time: u32,
     pub memory: u32,
+    pub output: Option<String>,
     pub error: Option<String>,
 }
 

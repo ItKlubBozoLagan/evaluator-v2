@@ -15,6 +15,7 @@ fn evaluate_with_testcase(
             verdict: Verdict::JudgingError,
             memory: 0,
             time: 0,
+            output: None,
             error: None,
         };
     };
@@ -30,6 +31,7 @@ fn evaluate_with_testcase(
         verdict,
         memory: 0,
         time: 0,
+        output: None,
         error: None,
     }
 }

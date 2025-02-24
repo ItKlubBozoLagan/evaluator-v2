@@ -46,8 +46,6 @@ pub fn write_to_fd_safe(
     input: &[u8],
     strategy: LargeWriteStrategy,
 ) -> Result<WriteHandle, SafeFdWriteError> {
-    dbg!(input.len());
-
     let current_pipe_buf_size =
         nix::fcntl::fcntl(fd.as_raw_fd(), nix::fcntl::FcntlArg::F_GETPIPE_SZ)?;
 
