@@ -12,7 +12,7 @@ impl EvaluationLanguage {
             E::C => Some((
                 "/usr/bin/gcc",
                 vec![
-                    "-std=c11", "-x", "c", "-O2", "-static", "-Wall", "-o", out_file, "-", "-lm",
+                    "-std=c11", "-fdiagnostics-color=always", "-x", "c", "-O2", "-static", "-Wall", "-o", out_file, "-", "-lm",
                 ]
                 .into_iter()
                 .map(String::from)
@@ -23,6 +23,7 @@ impl EvaluationLanguage {
                 "/usr/bin/g++",
                 vec![
                     "-std=c++17",
+                    "-fdiagnostics-color=always",
                     "-x",
                     "c++",
                     "-O2",
@@ -81,7 +82,7 @@ impl EvaluationLanguage {
                 Some((
                     "/usr/bin/gcc",
                     vec![
-                        "-x", "assembler", "-static", "-nostdlib", "-no-pie", "-o", out_file, "-",
+                        "-fdiagnostics-color=always", "-x", "assembler", "-static", "-nostdlib", "-no-pie", "-o", out_file, "-",
                     ]
                         .into_iter()
                         .map(String::from)
