@@ -50,5 +50,6 @@ pub fn evaluate(
         max_memory: 0,
         max_time: 0,
         testcases: vec![result],
+        compiler_output: None,
     })
 }

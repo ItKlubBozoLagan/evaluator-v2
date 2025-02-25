@@ -140,5 +140,6 @@ pub fn evaluate(
             .unwrap_or(0),
         max_time: testcase_results.iter().map(|it| it.time).max().unwrap_or(0),
         testcases: testcase_results,
+        compiler_output: compilation_result.compiler_stderr,
     })
 }

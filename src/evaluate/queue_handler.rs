@@ -86,6 +86,7 @@ pub async fn handle(
                     testcases: vec![],
                     max_time: 0,
                     max_memory: 0,
+                    compiler_output: None,
                 },
             };
 
