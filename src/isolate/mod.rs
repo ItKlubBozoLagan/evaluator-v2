@@ -101,6 +101,8 @@ impl IsolatedProcess {
     ) -> Result<Self, IsolateError> {
         let mut isolate_command = Command::new(ISOLATE_BINARY_LOCATION);
 
+        isolate_command.arg("--silent");
+
         isolate_command.arg("-E");
         isolate_command.arg("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 

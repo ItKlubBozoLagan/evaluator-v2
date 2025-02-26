@@ -16,6 +16,7 @@ pub struct SuccessfulEvaluation {
     max_time: u32,
     max_memory: u32,
     testcases: Vec<TestcaseResult>,
+    compiler_output: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

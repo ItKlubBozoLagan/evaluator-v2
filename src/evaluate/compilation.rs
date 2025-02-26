@@ -10,6 +10,9 @@ use thiserror::Error;
 #[derive(Debug)]
 pub struct CompilationResult {
     pub process: RunnableProcess,
+    // compilation result is generic and is used for all languages (including interpreted ones)
+    //  if the compilation step is done, it's stderr will be here
+    pub compiler_stderr: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -37,6 +40,7 @@ pub fn process_compilation(
             process: RunnableProcess::Python(PythonProcessData {
                 code: code.to_string(),
             }),
+            compiler_stderr: None,
         }),
         _ => compile(code, language, box_id),
     }
@@ -74,13 +78,14 @@ fn compile(
 
     let output = process.wait_for_output()?;
 
+    let compiler_stderr = Some(String::from_utf8_lossy(&output.stderr).to_string());
+
     if !output.status.success() {
         process.cleanup_and_reset()?;
 
-        return Err(CompilationError::CompilationProcessError(format!(
-            "\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        )));
+        return Err(CompilationError::CompilationProcessError(
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        ));
     }
 
     process.move_out_of_box(&output_file, &file_path)?;
@@ -91,11 +96,13 @@ fn compile(
             process: RunnableProcess::Java(JavaProcessData {
                 built_class_name: file_path,
             }),
+            compiler_stderr,
         }),
         _ => Ok(CompilationResult {
             process: RunnableProcess::Compiled(CompiledProcessData {
                 executable_path: file_path,
             }),
+            compiler_stderr,
         }),
     }
 }

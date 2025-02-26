@@ -1,4 +1,5 @@
 use crate::environment::Environment;
+use crate::evaluate::compilation::CompilationError;
 use crate::evaluate::{begin_evaluation, SuccessfulEvaluation, Verdict};
 use crate::messages::{Evaluation, EvaluationMeta, Message, SystemMessage};
 use crate::state::AppState;
@@ -80,13 +81,21 @@ pub async fn handle(
 
             let result = match res {
                 Ok(result) => result,
-                Err(err) => SuccessfulEvaluation {
-                    evaluation_id: evaluation.get_evaluation_id(),
-                    verdict: Verdict::CompilationError(err.to_string()),
-                    testcases: vec![],
-                    max_time: 0,
-                    max_memory: 0,
-                },
+                Err(err) => {
+                    let error = match err {
+                        CompilationError::CompilationProcessError(err) => err,
+                        _ => err.to_string(),
+                    };
+
+                    SuccessfulEvaluation {
+                        evaluation_id: evaluation.get_evaluation_id(),
+                        verdict: Verdict::CompilationError(error.clone()),
+                        testcases: vec![],
+                        max_time: 0,
+                        max_memory: 0,
+                        compiler_output: Some(error),
+                    }
+                }
             };
 
             let output_json =
