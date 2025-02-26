@@ -1,6 +1,24 @@
 use crate::messages::EvaluationLanguage;
 use crate::util;
 
+// argh, formatting doesn't work when the format! is called directly where it's used
+//  and format! doesn't support const strings as format strings
+#[inline]
+fn make_go_compile_script(out_file: &str) -> String {
+    format!(
+        "cat > source.go && GOCACHE=/tmp/.gocache GOFLAGS=\"-count=1\" /usr/bin/go build -o {} source.go && rm source.go",
+        out_file
+    )
+}
+
+#[inline]
+fn make_java_compile_script(out_file: &str) -> String {
+    format!(
+        "cat > source.java && /usr/bin/javac source.java && mv Main.class {}",
+        out_file
+    )
+}
+
 impl EvaluationLanguage {
     // get compiler command and arguments based on language
     pub fn get_compiler_command(
@@ -12,7 +30,17 @@ impl EvaluationLanguage {
             E::C => Some((
                 "/usr/bin/gcc",
                 vec![
-                    "-std=c11", "-fdiagnostics-color=always", "-x", "c", "-O2", "-static", "-Wall", "-o", out_file, "-", "-lm",
+                    "-std=c11",
+                    "-fdiagnostics-color=always",
+                    "-x",
+                    "c",
+                    "-O2",
+                    "-static",
+                    "-Wall",
+                    "-o",
+                    out_file,
+                    "-",
+                    "-lm",
                 ]
                 .into_iter()
                 .map(String::from)
@@ -56,40 +84,38 @@ impl EvaluationLanguage {
             )),
             E::Go => Some((
                 "/usr/bin/bash",
+                vec!["-c", &make_go_compile_script(out_file)]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+                vec![],
+            )),
+            E::Java => Some((
+                "/usr/bin/bash",
+                vec!["-c", &make_java_compile_script(out_file)]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+                util::general::ETC_JAVA_DIRECTORIES.clone(),
+            )),
+            E::GnuAsmX86Linux => Some((
+                "/usr/bin/gcc",
                 vec![
-                    "-c",
-                    &format!("cp /dev/stdin source.go && GOCACHE=/tmp/.gocache /usr/bin/go build -o {out_file} source.go && rm source.go"),
+                    "-fdiagnostics-color=always",
+                    "-x",
+                    "assembler",
+                    "-static",
+                    "-nostdlib",
+                    "-no-pie",
+                    "-o",
+                    out_file,
+                    "-",
                 ]
                 .into_iter()
                 .map(String::from)
                 .collect(),
                 vec![],
             )),
-            E::Java => {
-                Some((
-                    "/usr/bin/bash",
-                    vec![
-                        "-c",
-                        &format!("cp /dev/stdin source.java && /usr/bin/javac source.java && mv Main.class {out_file}"),
-                    ]
-                    .into_iter()
-                    .map(String::from)
-                    .collect(),
-                    util::general::ETC_JAVA_DIRECTORIES.clone(),
-                ))
-            },
-            E::GnuAsmX86Linux => {
-                Some((
-                    "/usr/bin/gcc",
-                    vec![
-                        "-fdiagnostics-color=always", "-x", "assembler", "-static", "-nostdlib", "-no-pie", "-o", out_file, "-",
-                    ]
-                        .into_iter()
-                        .map(String::from)
-                        .collect(),
-                    vec![],
-                ))
-            }
             E::Python => None,
         }
     }

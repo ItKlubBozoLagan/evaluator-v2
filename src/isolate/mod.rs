@@ -15,9 +15,12 @@ const ISOLATE_BINARY_LOCATION: &str = "/usr/local/bin/isolate";
 
 // 1 MiB = 256 blocks if block is 4096 bytes
 // TODO: dynamic
-const MAX_DISK_QUOTA_BLOCKS: u32 = 25600;
+const MAX_DISK_QUOTA_BLOCKS: u32 = 64 * 256;
 const MAX_DISK_QUOTA_INODES: u32 = 10;
-const MAX_DISK_QUOTA_INODES_SYSTEM: u32 = 100;
+
+// compiler (especially Go, FFS) need a lot of files for some reason
+const MAX_DISK_QUOTA_BLOCKS_SYSTEM: u32 = 512 * 256;
+const MAX_DISK_QUOTA_INODES_SYSTEM: u32 = 1024;
 
 const MAX_OPEN_FILES_SYSTEM: u32 = 256;
 
@@ -173,6 +176,7 @@ impl IsolatedProcess {
 
         pre_hook(self)?;
 
+        // default is 64
         if self.command_meta.system {
             self.command.arg("--open-files");
             self.command.arg(format!("{}", MAX_OPEN_FILES_SYSTEM));
@@ -252,7 +256,11 @@ impl IsolatedProcess {
             isolate_command.arg("--quota");
             isolate_command.arg(format!(
                 "{},{}",
-                MAX_DISK_QUOTA_BLOCKS,
+                if self.command_meta.system {
+                    MAX_DISK_QUOTA_BLOCKS_SYSTEM
+                } else {
+                    MAX_DISK_QUOTA_BLOCKS
+                },
                 if self.command_meta.system {
                     MAX_DISK_QUOTA_INODES_SYSTEM
                 } else {
