@@ -83,10 +83,9 @@ fn compile(
     if !output.status.success() {
         process.cleanup_and_reset()?;
 
-        return Err(CompilationError::CompilationProcessError(format!(
-            "\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        )));
+        return Err(CompilationError::CompilationProcessError(
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        ));
     }
 
     process.move_out_of_box(&output_file, &file_path)?;
