@@ -14,7 +14,7 @@ fn make_go_compile_script(out_file: &str) -> String {
 #[inline]
 fn make_java_compile_script(out_file: &str) -> String {
     format!(
-        "cat > source.java && /usr/bin/javac source.java && mv Main.class {}",
+        "cat > source.java && /usr/bin/javac -Xlint:all source.java && mv Main.class {}",
         out_file
     )
 }
