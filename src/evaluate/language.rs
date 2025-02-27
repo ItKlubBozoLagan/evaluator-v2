@@ -30,8 +30,8 @@ impl EvaluationLanguage {
             E::C => Some((
                 "/usr/bin/gcc",
                 vec![
-                    "-std=c11",
                     "-fdiagnostics-color=always",
+                    "-std=c11",
                     "-x",
                     "c",
                     "-O2",
@@ -50,8 +50,8 @@ impl EvaluationLanguage {
             E::Cpp => Some((
                 "/usr/bin/g++",
                 vec![
-                    "-std=c++17",
                     "-fdiagnostics-color=always",
+                    "-std=c++17",
                     "-x",
                     "c++",
                     "-O2",
@@ -69,6 +69,7 @@ impl EvaluationLanguage {
             E::Rust => Some((
                 "/usr/bin/rustc",
                 vec![
+                    "--color=always",
                     "-C",
                     "opt-level=2",
                     "-C",
