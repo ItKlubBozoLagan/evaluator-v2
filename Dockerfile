@@ -2,7 +2,7 @@ FROM debian:bookworm AS isolate-build
 
 WORKDIR /opt
 
-RUN apt-get update && \ 
+RUN apt-get update && \
     apt-get -y install git gcc pkg-config make libcap-dev libsystemd-dev
 
 RUN git clone https://github.com/ioi/isolate
@@ -17,6 +17,10 @@ RUN echo "deb http://deb.debian.org/debian testing main" >> /etc/apt/sources.lis
 
 RUN apt-get update && \
     apt-get -y install python3 gcc g++ rustc openjdk-17-jdk golang
+
+RUN ln -sf /usr/bin/gcc /usr/bin/cc
+RUN ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/javac /usr/bin/javac
+RUN ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/java /usr/bin/java
 
 COPY --from=isolate-build /opt/isolate/isolate /usr/local/bin/isolate
 COPY --from=isolate-build /opt/isolate/isolate-cg-keeper /usr/local/bin/isolate-cg-keeper
