@@ -51,7 +51,7 @@ fn evaluate_with_testcase(
             verdict,
             memory: meta.cg_mem_kb,
             time: meta.time_ms,
-            output: Some(output_str),
+            output: None,
             error: Some(String::from_utf8_lossy(&output.stderr).to_string()),
         };
     }
@@ -64,7 +64,7 @@ fn evaluate_with_testcase(
                 verdict: (&err).into(),
                 memory: 0,
                 time: 0,
-                output: Some(output_str),
+                output: None,
                 error: Some(err.to_string()),
             }
         }
