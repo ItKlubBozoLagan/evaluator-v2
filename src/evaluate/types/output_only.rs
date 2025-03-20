@@ -25,7 +25,6 @@ fn evaluate_with_testcase(
         CheckerResult::WrongAnswer => Verdict::WrongAnswer,
         CheckerResult::Custom(message) => Verdict::Custom(message),
     };
-
     TestcaseResult {
         id: testcase.id.clone(),
         verdict,

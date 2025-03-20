@@ -28,7 +28,9 @@ COPY --from=isolate-build /opt/isolate/default.cf /usr/local/etc/isolate
 
 WORKDIR /app
 
-COPY ./target/release/kontestis-evaluator-v2 /app/evaluator
+ARG BUILD_ENV="release"
+
+COPY ./target/${BUILD_ENV}/kontestis-evaluator-v2 /app/evaluator
 
 COPY ./.docker/* /app/docker/
 RUN chmod +x /app/docker/*.sh
