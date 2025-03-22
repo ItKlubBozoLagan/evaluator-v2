@@ -3,7 +3,7 @@ use crate::state::AppState;
 use crate::tracing::setup_tracing;
 use std::collections::HashSet;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 use ::tracing::{error, info};
 
 mod messages;
@@ -58,6 +58,7 @@ async fn entrypoint() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState {
         used_box_ids: Mutex::from(HashSet::new()),
+        available_boxes_notify: Notify::new(),
     });
 
     let client = redis::Client::open(&*Environment::get().redis_url)?;
@@ -69,7 +70,7 @@ async fn entrypoint() -> anyhow::Result<()> {
         Environment::get().max_evaluations
     );
 
-    messages::handler::handle_messages(state, client.get_connection_manager().await?).await;
+    messages::handler::handle_messages(state, client).await;
 
     Ok(())
 }

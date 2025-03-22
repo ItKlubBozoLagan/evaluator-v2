@@ -8,7 +8,21 @@ use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use std::sync::Arc;
 use tokio::runtime::Handle;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
+
+pub async fn wait_for_available_boxes(state: Arc<AppState>) {
+    loop {
+        let used_box_ids = state.used_box_ids.lock().await;
+        let used_box_ids_cnt = used_box_ids.len();
+        drop(used_box_ids);
+
+        if Environment::get().max_evaluations as usize - used_box_ids_cnt >= 2 {
+            break;
+        }
+
+        state.available_boxes_notify.notified().await;
+    }
+}
 
 pub async fn handle_evaluation(
     state: Arc<AppState>,
@@ -46,7 +60,7 @@ pub async fn handle_evaluation(
 
     let mut redis = redis_connection.clone();
     let handle_state = state.clone();
-    let handle = Handle::current().spawn_blocking(move || {
+    Handle::current().spawn_blocking(move || {
         info!(
             "Starting evaluation {} with boxes {:?}",
             &evaluation.get_evaluation_id(),
@@ -65,7 +79,9 @@ pub async fn handle_evaluation(
                 used_box_ids.remove(id);
             }
 
-            drop(used_box_ids)
+            drop(used_box_ids);
+
+            handle_state.available_boxes_notify.notify_waiters();
         });
 
         let result = match res {
@@ -99,11 +115,8 @@ pub async fn handle_evaluation(
     });
 
     if Environment::get().max_evaluations as usize - used_box_ids_cnt <= 1 {
-        let handle_result = handle.await;
-
-        if let Err(err) = handle_result {
-            warn!("Execution handle failed: {err}");
-        }
+        wait_for_available_boxes(state.clone()).await;
+        return MessageResult::Continue;
     }
 
     MessageResult::Continue
