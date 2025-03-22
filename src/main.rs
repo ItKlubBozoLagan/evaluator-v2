@@ -1,5 +1,4 @@
 use crate::environment::Environment;
-use crate::messages::Message;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
 use std::collections::HashSet;
@@ -63,14 +62,6 @@ async fn entrypoint() -> anyhow::Result<()> {
 
     let client = redis::Client::open(&*Environment::get().redis_url)?;
 
-    let (tx, _) = tokio::sync::broadcast::channel::<Message>(16);
-
-    let evaluation_handler = tokio::spawn(evaluate::queue_handler::handle(
-        state.clone(),
-        tx.subscribe(),
-        client.get_connection_manager().await?,
-    ));
-
     info!("Started");
 
     info!(
@@ -78,9 +69,7 @@ async fn entrypoint() -> anyhow::Result<()> {
         Environment::get().max_evaluations
     );
 
-    messages::handler::handle_messages(client.get_connection_manager().await?, tx).await;
-
-    let _ = evaluation_handler.await;
+    messages::handler::handle_messages(state, client.get_connection_manager().await?).await;
 
     Ok(())
 }

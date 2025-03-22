@@ -1,7 +1,10 @@
 use crate::environment::Environment;
+use crate::evaluate::queue_handler::handle_evaluation;
 use crate::messages::{Message, SystemMessage};
+use crate::state::AppState;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 #[derive(Debug, thiserror::Error)]
@@ -10,12 +13,26 @@ pub enum MessageHandlerError {
     RedisError(#[from] redis::RedisError),
 }
 
-pub async fn handle_messages(
-    mut connection: ConnectionManager,
-    channel: tokio::sync::broadcast::Sender<Message>,
-) {
-    loop {
-        let msg = do_handle_message(&mut connection).await;
+pub enum MessageResult {
+    Continue,
+    _Wait,
+    Exit,
+}
+
+async fn handle_single_message(
+    state: Arc<AppState>,
+    message: Message,
+    connection: &mut ConnectionManager,
+) -> MessageResult {
+    match message {
+        Message::System(SystemMessage::Exit) => MessageResult::Exit,
+        Message::BeginEvaluation(meta) => handle_evaluation(state, connection, meta).await,
+    }
+}
+
+pub async fn handle_messages(state: Arc<AppState>, mut connection: ConnectionManager) {
+    'outer: loop {
+        let msg = pull_redis_message(&mut connection).await;
 
         let message = match msg {
             Err(err) => {
@@ -26,19 +43,22 @@ pub async fn handle_messages(
         };
 
         if let Some(msg) = message {
-            let is_exit = matches!(msg, Message::System(SystemMessage::Exit));
-
-            let _ = channel.send(msg);
-
-            if is_exit {
-                info!("Received system exit, stopping message handler");
-                break;
+            let result = handle_single_message(state.clone(), msg, &mut connection).await;
+            match result {
+                MessageResult::Continue => {}
+                MessageResult::_Wait => {
+                    todo!()
+                }
+                MessageResult::Exit => {
+                    info!("Received system exit, stopping evaluation handler");
+                    break 'outer;
+                }
             }
         }
     }
 }
 
-async fn do_handle_message(
+async fn pull_redis_message(
     connection: &mut ConnectionManager,
 ) -> Result<Option<Message>, MessageHandlerError> {
     if Environment::get().exit_on_empty_queue {
