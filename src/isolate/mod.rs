@@ -26,6 +26,8 @@ const MAX_OPEN_FILES_SYSTEM: u32 = 256;
 
 const MAX_WALL_TIME_LIMIT_SECONDS: f32 = 30.0;
 
+const PID_LIMIT: u32 = 1024;
+
 // https://github.com/ioi/isolate/issues/95
 const EXTRA_TIME_PERCENT: u8 = 125;
 
@@ -109,7 +111,8 @@ impl IsolatedProcess {
         isolate_command.arg("-E");
         isolate_command.arg("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
-        isolate_command.arg("--processes");
+        isolate_command.arg(format!("--processes={PID_LIMIT}"));
+
         if Environment::get().run_with_cgroups {
             isolate_command.arg("--cg");
         }
