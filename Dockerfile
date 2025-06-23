@@ -9,7 +9,7 @@ RUN git clone https://github.com/ioi/isolate
 
 WORKDIR /opt/isolate
 
-RUN make isolate isolate-cg-keeper
+RUN make isolate isolate-cg-keeper default.cf
 
 FROM debian:bookworm 
 
