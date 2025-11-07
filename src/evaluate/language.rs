@@ -18,6 +18,14 @@ fn make_java_compile_script(out_file: &str) -> String {
         out_file
     )
 }
+#[inline]
+fn make_ocaml_compile_script(out_file: &str) -> String {
+    format!(
+        "cat > source.ml && /usr/bin/ocamlopt -color always -O2 -o {0} source.ml && rm source.ml",
+        out_file
+    )
+}
+
 
 impl EvaluationLanguage {
     // get compiler command and arguments based on language
@@ -115,6 +123,14 @@ impl EvaluationLanguage {
                 .into_iter()
                 .map(String::from)
                 .collect(),
+                vec![],
+            )),
+            E::OCaml => Some((
+                "/usr/bin/bash",
+                vec!["-c", &make_ocaml_compile_script(out_file)]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
                 vec![],
             )),
             E::Python => None,

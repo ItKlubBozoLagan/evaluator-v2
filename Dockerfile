@@ -16,7 +16,7 @@ FROM debian:bookworm
 RUN echo "deb http://deb.debian.org/debian testing main" >> /etc/apt/sources.list
 
 RUN apt-get update && \
-    apt-get -y install python3 gcc g++ rustc openjdk-17-jdk golang
+    apt-get -y install python3 gcc g++ rustc openjdk-17-jdk golang ocaml
 
 RUN ln -sf /usr/bin/gcc /usr/bin/cc
 RUN ln -sf /usr/lib/jvm/java-17-openjdk-*/bin/javac /usr/bin/javac

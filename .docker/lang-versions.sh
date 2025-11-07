@@ -1,7 +1,7 @@
 set -ueo pipefail
 
 echo "---- Python version: ----"
-echo "Python verison: "
+echo "Python version: "
 /usr/bin/python3 --version
 echo "-------------------------"
 echo
@@ -30,3 +30,7 @@ echo "----  Java version:  ----"
 /usr/bin/java --version
 echo "-------------------------"
 echo
+
+echo "---- OCaml version: ----"
+/usr/bin/ocamlopt -v
+echo "-------------------------"
