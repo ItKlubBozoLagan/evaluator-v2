@@ -15,6 +15,7 @@ pub enum EvaluationLanguage {
     Java,
     Go,
     GnuAsmX86Linux,
+    OCaml
 }
 
 impl Display for EvaluationLanguage {
