@@ -15,6 +15,7 @@ pub enum EvaluationLanguage {
     Java,
     Go,
     GnuAsmX86Linux,
+    #[serde(rename = "ocaml")]
     OCaml
 }
 
