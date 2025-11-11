@@ -174,7 +174,7 @@ pub fn evaluate(
     let mut testcase_results = Vec::<TestcaseResult>::new();
 
     for testcase in &evaluation.testcases {
-        if global_verdict != Verdict::Accepted && !matches!(global_verdict, Verdict::Custom(_)) {
+        if !evaluation.evaluate_all && (global_verdict != Verdict::Accepted && !matches!(global_verdict, Verdict::Custom(_))) {
             testcase_results.push(TestcaseResult {
                 id: testcase.id.clone(),
                 verdict: Verdict::Skipped,
