@@ -2,9 +2,6 @@ use std::fmt::{Display, Formatter};
 
 pub mod handler;
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub enum ProblemType {}
-
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EvaluationLanguage {
@@ -16,7 +13,7 @@ pub enum EvaluationLanguage {
     Go,
     GnuAsmX86Linux,
     #[serde(rename = "ocaml")]
-    OCaml
+    OCaml,
 }
 
 impl Display for EvaluationLanguage {
