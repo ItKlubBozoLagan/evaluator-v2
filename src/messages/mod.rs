@@ -36,6 +36,7 @@ pub struct BatchEvaluation {
     pub testcases: Vec<Testcase>,
     pub time_limit: u32,
     pub memory_limit: u32,
+    pub evaluate_all: bool,
     pub checker: Option<CheckerData>,
 }
 
@@ -47,6 +48,7 @@ pub struct InteractiveEvaluation {
     pub testcases: Vec<Testcase>,
     pub time_limit: u32,
     pub memory_limit: u32,
+    pub evaluate_all: bool,
     pub checker: CheckerData,
 }
 
