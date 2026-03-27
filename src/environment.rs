@@ -11,6 +11,11 @@ pub struct SystemEnvironment {
 }
 
 #[derive(Debug)]
+pub struct CompileCache {
+    pub cache_dir: String,
+}
+
+#[derive(Debug)]
 pub struct Environment {
     pub force_debug_logs: bool,
     pub max_evaluations: u8,
@@ -19,6 +24,7 @@ pub struct Environment {
     pub run_with_cgroups: bool,
     pub run_with_quotas: bool,
     pub exit_on_empty_queue: bool,
+    pub compile_cache: Option<CompileCache>,
 
     pub system_environment: SystemEnvironment,
 }
@@ -57,6 +63,14 @@ impl Environment {
                 .unwrap_or("false".to_string())
                 .parse::<bool>()
                 .expect("EXIT_ON_EMPTY_QUEUE must be a boolean"),
+            compile_cache: env::var("COMPILE_CACHE_ENABLED")
+                .unwrap_or("false".to_string())
+                .parse::<bool>()
+                .expect("COMPILE_CACHE_ENABLED must be a boolean")
+                .then(|| CompileCache {
+                    cache_dir: env::var("COMPILE_CACHE_DIR")
+                        .expect("COMPILE_CACHE_DIR must be set"),
+                }),
             system_environment,
         }
     }
