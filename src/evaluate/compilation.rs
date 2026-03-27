@@ -86,8 +86,9 @@ fn check_cached_compile(
 
     let ram_exists = std::fs::exists(&ctx.done_path)?;
     if ram_exists {
-        let stderr = std::fs::read_to_string(&ctx.stderr_path)
+        let stderr = std::fs::read(&ctx.stderr_path)
             .map_err(|err| CompilationError::InvalidCache(err.to_string().into()))?;
+        let stderr = String::from_utf8_lossy(&stderr).to_string();
 
         if !std::fs::exists(&ctx.binary_path)? {
             return Err(CompilationError::InvalidCache(
@@ -123,7 +124,7 @@ fn create_compile_ctx<'a>(
     let code_hash_hex = hex::encode(code_hash);
 
     let maybe_cache_suffix = if Environment::get().compile_cache.is_some() {
-        ""
+        &format!(".{}", language)
     } else {
         &format!(".{}", util::general::random_bytes(8))
     };
@@ -189,6 +190,8 @@ fn compile(
         return Ok(result);
     }
 
+    debug!("compiling new binary");
+
     let (compiler, args, dir_mounts) = ctx
         .language
         .get_compiler_command(&ctx.binary_file_name)
@@ -252,7 +255,7 @@ fn finalize_compile_cache(
     stderr_file.write_all(stderr)?;
     nix::unistd::fsync(stderr_file.as_raw_fd())?;
 
-    let binary_file = File::open(&cache_ctx.stderr_path)?;
+    let binary_file = File::open(&cache_ctx.binary_path)?;
     nix::unistd::fsync(binary_file.as_raw_fd())?;
 
     OpenOptions::new()
