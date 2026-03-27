@@ -12,7 +12,7 @@ use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use thiserror::Error;
 use tracing::debug;
 
@@ -150,23 +150,29 @@ fn create_compile_ctx<'a>(
 }
 
 lazy_static! {
-    // TODO: memory leak
-    static ref COMPILATION_LOCKS: Mutex<HashMap<[u8; 32], Arc<Mutex<()>>>> =
+    static ref COMPILATION_LOCKS: Mutex<HashMap<[u8; 32], Weak<Mutex<()>>>> =
         Mutex::new(HashMap::new());
+}
+
+fn cleanup_mutex_map(map: &mut HashMap<[u8; 32], Weak<Mutex<()>>>) {
+    map.retain(|_, v| Weak::strong_count(v) > 0);
 }
 
 fn mutex_by_code(ctx: &CompilationCtx) -> Arc<Mutex<()>> {
     let mut map_lock = COMPILATION_LOCKS.lock().expect("map_mutex poisoned");
 
-    let Some(code_mutex) = map_lock.get(&ctx.hash) else {
-        map_lock.insert(ctx.hash, Arc::new(Mutex::new(())));
+    cleanup_mutex_map(&mut map_lock);
 
-        drop(map_lock);
-
-        return mutex_by_code(ctx);
+    if let Some(code_mutex) = map_lock.get(&ctx.hash).and_then(Weak::upgrade) {
+        return code_mutex;
     };
 
-    Arc::clone(code_mutex)
+    let new_code_mutex = Arc::new(Mutex::new(()));
+    map_lock.insert(ctx.hash, Arc::downgrade(&new_code_mutex));
+
+    drop(map_lock);
+
+    new_code_mutex
 }
 
 fn compile(
@@ -178,13 +184,10 @@ fn compile(
 
     let code_mutex = mutex_by_code(&ctx);
     let _guard = code_mutex.lock().expect("code_mutex poisoned");
-    debug!("taken lock for {}", ctx.hash_hex);
 
     if let Some(result) = check_cached_compile(&ctx)? {
         return Ok(result);
     }
-
-    debug!("compiling new binary");
 
     let (compiler, args, dir_mounts) = ctx
         .language
