@@ -10,6 +10,8 @@ use std::borrow::Cow;
 use thiserror::Error;
 use tracing::debug;
 
+pub use ctx::CompilationPaths;
+
 #[derive(Debug)]
 pub struct CompilationResult {
     pub process: RunnableProcess,

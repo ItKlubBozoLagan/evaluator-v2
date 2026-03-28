@@ -9,6 +9,8 @@ use crate::evaluate::compilation::CompilationError;
 use crate::messages::Evaluation;
 use serde::Serialize;
 
+pub use compilation::CompilationPaths;
+
 #[derive(Debug, Serialize)]
 pub struct SuccessfulEvaluation {
     evaluation_id: u64,

@@ -1,3 +1,4 @@
+use crate::constants::CACHE_TMP_DIR;
 use crate::environment::Environment;
 use crate::messages::EvaluationLanguage;
 use crate::util;
@@ -15,22 +16,24 @@ pub(super) struct CompilationCtx<'a> {
     pub(super) persistent_paths: Option<CompilationPaths>,
 }
 
-pub(super) struct CompilationPaths {
-    pub(super) binary: PathBuf,
-    pub(super) stderr: PathBuf,
-    pub(super) done: PathBuf,
+pub struct CompilationPaths {
+    pub binary: PathBuf,
+    pub stderr: PathBuf,
+    pub done: PathBuf,
 }
 
-fn gen_paths(
-    root: PathBuf,
-    binary_name: &str,
-    stderr_name: &str,
-    done_name: &str,
-) -> CompilationPaths {
-    CompilationPaths {
-        binary: root.join(binary_name),
-        stderr: root.join(stderr_name),
-        done: root.join(done_name),
+impl CompilationPaths {
+    pub fn new_with_root(
+        root: PathBuf,
+        binary_name: &str,
+        stderr_name: &str,
+        done_name: &str,
+    ) -> CompilationPaths {
+        CompilationPaths {
+            binary: root.join(binary_name),
+            stderr: root.join(stderr_name),
+            done: root.join(done_name),
+        }
     }
 }
 
@@ -52,7 +55,7 @@ impl<'a> CompilationCtx<'a> {
         );
 
         let persistent_paths = Environment::get().compile_cache.as_ref().map(|cache| {
-            gen_paths(
+            CompilationPaths::new_with_root(
                 PathBuf::from(&cache.cache_dir),
                 &binary_name,
                 &stderr_name,
@@ -65,8 +68,8 @@ impl<'a> CompilationCtx<'a> {
             language,
             box_id,
             hash: code_hash,
-            tmp_paths: gen_paths(
-                PathBuf::from("/tmp"),
+            tmp_paths: CompilationPaths::new_with_root(
+                PathBuf::from(CACHE_TMP_DIR),
                 &binary_name,
                 &stderr_name,
                 &done_name,

@@ -1,15 +1,17 @@
 use crate::environment::Environment;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
+use ::tracing::{error, info};
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Notify};
-use ::tracing::{error, info};
 
 mod messages;
 mod state;
 mod tracing;
 
+mod cleanup;
+mod constants;
 mod environment;
 mod evaluate;
 mod isolate;
@@ -70,7 +72,10 @@ async fn entrypoint() -> anyhow::Result<()> {
         Environment::get().max_evaluations
     );
 
-    messages::handler::handle_messages(state, client).await;
+    tokio::select! {
+        _ = messages::handler::handle_messages(state, client) => {},
+        _ = cleanup::cleanup_cached_compiles() => {}
+    }
 
     Ok(())
 }
