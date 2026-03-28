@@ -1,5 +1,6 @@
 use crate::isolate::meta::ProcessMeta;
 use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess, ProcessInput};
+use crate::messages::EvaluationLanguage;
 use crate::util;
 use std::os::fd::OwnedFd;
 use std::path::PathBuf;
@@ -41,6 +42,17 @@ pub struct ProcessRunResult {
 }
 
 impl RunnableProcess {
+    pub fn new_compiled(language: &EvaluationLanguage, binary_path: PathBuf) -> Self {
+        match language {
+            EvaluationLanguage::Java => RunnableProcess::Java(JavaProcessData {
+                built_class_name: binary_path,
+            }),
+            _ => RunnableProcess::Compiled(CompiledProcessData {
+                executable_path: binary_path,
+            }),
+        }
+    }
+
     pub fn run(
         &self,
         exec_id: u8,
