@@ -4,8 +4,8 @@ use crate::evaluate::{begin_evaluation, SuccessfulEvaluation, Verdict};
 use crate::messages::handler::MessageResult;
 use crate::messages::{Evaluation, EvaluationMeta};
 use crate::state::AppState;
-use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use redis::Client;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tracing::{debug, error, info};
@@ -26,7 +26,7 @@ pub async fn wait_for_available_boxes(state: Arc<AppState>) {
 
 pub async fn handle_evaluation(
     state: Arc<AppState>,
-    redis_connection: &mut ConnectionManager,
+    redis_client: &Client,
     EvaluationMeta {
         output_queue,
         evaluation,
@@ -58,7 +58,7 @@ pub async fn handle_evaluation(
 
     drop(used_box_ids);
 
-    let mut redis = redis_connection.clone();
+    let publish_client = redis_client.clone();
     let handle_state = state.clone();
     Handle::current().spawn_blocking(move || {
         info!(
@@ -106,8 +106,10 @@ pub async fn handle_evaluation(
         let output_json =
             serde_json::to_string(&result).expect("evaluation to json should have worked");
 
-        let publish_result = Handle::current()
-            .block_on(async move { redis.rpush::<_, _, ()>(output_queue, output_json).await });
+        let publish_result: redis::RedisResult<()> = Handle::current().block_on(async move {
+            let mut conn = publish_client.get_multiplexed_async_connection().await?;
+            conn.rpush::<_, _, ()>(output_queue, output_json).await
+        });
 
         if let Err(err) = publish_result {
             error!("Failed to publish evaluation result: {err}");

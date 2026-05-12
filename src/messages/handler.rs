@@ -21,21 +21,16 @@ pub enum MessageResult {
 async fn handle_single_message(
     state: Arc<AppState>,
     message: Message,
-    connection: &mut ConnectionManager,
+    redis_client: &Client,
 ) -> MessageResult {
     match message {
         Message::System(SystemMessage::Exit) => MessageResult::Exit,
-        Message::BeginEvaluation(meta) => handle_evaluation(state, connection, meta).await,
+        Message::BeginEvaluation(meta) => handle_evaluation(state, redis_client, meta).await,
     }
 }
 
 pub async fn handle_messages(state: Arc<AppState>, redis_client: Client) {
     let mut msg_connection = redis_client
-        .get_connection_manager()
-        .await
-        .expect("Redis connection manager");
-
-    let mut evaluation_connection = redis_client
         .get_connection_manager()
         .await
         .expect("Redis connection manager");
@@ -52,8 +47,7 @@ pub async fn handle_messages(state: Arc<AppState>, redis_client: Client) {
         };
 
         if let Some(msg) = message {
-            let result =
-                handle_single_message(state.clone(), msg, &mut evaluation_connection).await;
+            let result = handle_single_message(state.clone(), msg, &redis_client).await;
             match result {
                 MessageResult::Continue => {}
                 MessageResult::Exit => {
