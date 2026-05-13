@@ -3,7 +3,7 @@ FROM debian:bookworm AS isolate-build
 WORKDIR /opt
 
 RUN apt-get update && \
-    apt-get -y install git gcc pkg-config make libcap-dev libsystemd-dev
+    apt-get -y install git gcc pkg-config make libcap-dev libsystemd-dev libseccomp-dev
 
 RUN git clone https://github.com/ioi/isolate
 
@@ -25,6 +25,10 @@ RUN ln -sf /usr/lib/jvm/java-17-openjdk-*/bin/java /usr/bin/java
 COPY --from=isolate-build /opt/isolate/isolate /usr/local/bin/isolate
 COPY --from=isolate-build /opt/isolate/isolate-cg-keeper /usr/local/bin/isolate-cg-keeper
 COPY --from=isolate-build /opt/isolate/default.cf /usr/local/etc/isolate
+
+RUN useradd -M -U isolate \
+ && echo "isolate:100000:65536" >> /etc/subuid \
+ && echo "isolate:100000:65536" >> /etc/subgid
 
 WORKDIR /app
 
