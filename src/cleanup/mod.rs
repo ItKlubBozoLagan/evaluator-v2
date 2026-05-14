@@ -44,7 +44,7 @@ async fn do_cleanup() -> anyhow::Result<u64> {
 
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
-        if !path.ends_with(".done") {
+        if !path.extension().map(|ext| ext == "done").unwrap_or(false) {
             continue;
         }
 
@@ -74,16 +74,22 @@ async fn do_cleanup() -> anyhow::Result<u64> {
         let (tmp_paths, persistent_paths) = make_paths(cache_dir.clone(), &path)?;
 
         // move if cache is enabled
-        tokio::fs::rename(tmp_paths.done, persistent_paths.done).await?;
-        tokio::fs::rename(tmp_paths.stderr, persistent_paths.stderr).await?;
-        tokio::fs::rename(tmp_paths.binary, persistent_paths.binary).await?;
-
-        // NOTE: maybe fsync?
+        rename_cross_fs(tmp_paths.done, persistent_paths.done).await?;
+        rename_cross_fs(tmp_paths.stderr, persistent_paths.stderr).await?;
+        rename_cross_fs(tmp_paths.binary, persistent_paths.binary).await?;
 
         cleared += 1;
     }
 
     Ok(cleared)
+}
+
+async fn rename_cross_fs(src: PathBuf, dst: PathBuf) -> anyhow::Result<()> {
+    tokio::fs::copy(&src, &dst).await?;
+    // maybe fsync?
+    tokio::fs::remove_file(&src).await?;
+
+    Ok(())
 }
 
 pub async fn cleanup_cached_compiles() {
