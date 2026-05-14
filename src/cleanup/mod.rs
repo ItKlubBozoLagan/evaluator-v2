@@ -95,6 +95,10 @@ async fn rename_cross_fs(src: PathBuf, dst: PathBuf) -> anyhow::Result<()> {
 pub async fn cleanup_cached_compiles() {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_mins(10));
 
+    tokio::fs::create_dir_all(CACHE_TMP_DIR)
+        .await
+        .expect("failed to create cache dir");
+
     loop {
         interval.tick().await;
 
