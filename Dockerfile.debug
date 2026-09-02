@@ -11,7 +11,7 @@ WORKDIR /opt/isolate
 
 RUN make isolate isolate-cg-keeper default.cf
 
-FROM debian:bookworm 
+FROM debian:bookworm
 
 RUN echo "deb http://deb.debian.org/debian testing main" >> /etc/apt/sources.list
 
