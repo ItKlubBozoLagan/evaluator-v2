@@ -13,6 +13,7 @@ use tracing::{error, info, warn};
 pub async fn run_evaluation(
     state: Arc<AppState>,
     connection: ConnectionManager,
+    serialized_size: usize,
     EvaluationMeta {
         output_queue,
         evaluation,
@@ -20,7 +21,30 @@ pub async fn run_evaluation(
     jobs: &mut JoinSet<anyhow::Result<()>>,
 ) -> anyhow::Result<()> {
     let evaluation_id = evaluation.get_evaluation_id();
-    let admission = state.admit(evaluation.needed_boxes()).await?;
+    if let Err(message) = evaluation.validate(serialized_size) {
+        let result =
+            SuccessfulEvaluation::error_for_evaluation(&evaluation, Verdict::SystemError, message);
+        return publish_result(state, connection, &output_queue, &result).await;
+    }
+
+    let requested_memory = evaluation
+        .memory_limit_kib()
+        .checked_add(Environment::get().system_memory_reserve_kib)
+        .ok_or_else(|| anyhow::anyhow!("evaluation {evaluation_id} memory request overflowed"))?;
+    let admission = match state
+        .admit(evaluation.needed_boxes(), requested_memory)
+        .await
+    {
+        Ok(admission) => admission,
+        Err(err) => {
+            let result = SuccessfulEvaluation::error_for_evaluation(
+                &evaluation,
+                Verdict::SystemError,
+                format!("evaluation rejected: {err}"),
+            );
+            return publish_result(state, connection, &output_queue, &result).await;
+        }
+    };
 
     state.jobs_started.fetch_add(1, Ordering::Relaxed);
     let state_for_job = state.clone();

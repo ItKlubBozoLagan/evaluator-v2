@@ -43,6 +43,7 @@ fn interact_with_testcase(
     interactor: &RunnableProcess,
     testcase: &Testcase,
     limits: &IsolateLimits,
+    interactor_limits: &IsolateLimits,
     box_id: u8,
     interactor_box_id: u8,
 ) -> Result<TestcaseResult, InteractError> {
@@ -58,7 +59,7 @@ fn interact_with_testcase(
     let mut interactor = interactor.just_run(
         interactor_box_id,
         ProcessInput::Piped(interactor_input),
-        limits,
+        interactor_limits,
         Some(interactor_output),
     )?;
 
@@ -179,6 +180,10 @@ pub fn evaluate(
         time_limit: evaluation.time_limit as f32 / 1000.0,
         memory_limit: evaluation.memory_limit,
     };
+    let interactor_limits = IsolateLimits {
+        time_limit: 30.0,
+        memory_limit: crate::environment::Environment::get().system_memory_reserve_kib,
+    };
     let mut global_verdict = Verdict::Accepted;
 
     let mut testcase_results = Vec::<TestcaseResult>::new();
@@ -204,6 +209,7 @@ pub fn evaluate(
             &interactor,
             testcase,
             &limits,
+            &interactor_limits,
             box_id,
             interactor_box_id,
         );
