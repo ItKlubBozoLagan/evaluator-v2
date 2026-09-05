@@ -1,19 +1,12 @@
 # kontestis-evaluator-rs
 
-### Redis
-
-Redis TLS with a private CA can be configured with:
+### Redis TLS
 
 ```sh
 REDIS_URL=rediss://user:password@redis.example:6379/0
 REDIS_CA_FILE=/etc/redis-ca/ca.crt
 REDIS_REQUIRE_TLS=true
-REDIS_QUEUE_KEY=evaluator_msg_queue
 ```
-
-Optional settings are `REDIS_CONNECTION_TIMEOUT_MS` (default `5000`),
-`REDIS_COMMAND_TIMEOUT_MS` (default `5000`), and `REDIS_PUBLISH_ATTEMPTS`
-(default `5`).
 
 ### Docker
 A built release binary is needed for the docker build to work

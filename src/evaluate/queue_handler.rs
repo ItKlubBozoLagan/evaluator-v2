@@ -1,15 +1,14 @@
 use crate::environment::Environment;
 use crate::evaluate::compilation::CompilationError;
-use crate::evaluate::{SuccessfulEvaluation, Verdict, begin_evaluation};
+use crate::evaluate::{begin_evaluation, SuccessfulEvaluation, Verdict};
 use crate::messages::handler::MessageResult;
 use crate::messages::{Evaluation, EvaluationMeta};
 use crate::state::AppState;
 use redis::AsyncCommands;
 use redis::Client;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::runtime::Handle;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 pub async fn wait_for_available_boxes(state: Arc<AppState>) {
     loop {
@@ -107,8 +106,10 @@ pub async fn handle_evaluation(
         let output_json =
             serde_json::to_string(&result).expect("evaluation to json should have worked");
 
-        let publish_result =
-            Handle::current().block_on(publish_result(publish_client, &output_queue, &output_json));
+        let publish_result: redis::RedisResult<()> = Handle::current().block_on(async move {
+            let mut conn = publish_client.get_multiplexed_async_connection().await?;
+            conn.rpush::<_, _, ()>(output_queue, output_json).await
+        });
 
         if let Err(err) = publish_result {
             error!("Failed to publish evaluation result: {err}");
@@ -121,33 +122,4 @@ pub async fn handle_evaluation(
     }
 
     MessageResult::Continue
-}
-
-async fn publish_result(
-    client: Client,
-    output_queue: &str,
-    output_json: &str,
-) -> redis::RedisResult<()> {
-    let attempts = Environment::get().redis_publish_attempts;
-    let mut delay = Duration::from_millis(200);
-
-    for attempt in 1..=attempts {
-        let result = async {
-            let mut connection = client.get_multiplexed_async_connection().await?;
-            connection.rpush(output_queue, output_json).await
-        }
-        .await;
-
-        match result {
-            Ok(()) => return Ok(()),
-            Err(err) if attempt < attempts => {
-                warn!(attempt, "result publication failed, retrying: {err}");
-                tokio::time::sleep(delay).await;
-                delay = (delay * 2).min(Duration::from_secs(2));
-            }
-            Err(err) => return Err(err),
-        }
-    }
-
-    unreachable!()
 }

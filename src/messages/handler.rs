@@ -2,11 +2,9 @@ use crate::environment::Environment;
 use crate::evaluate::queue_handler::handle_evaluation;
 use crate::messages::{Message, SystemMessage};
 use crate::state::AppState;
-use redis::AsyncCommands;
-use redis::Client;
 use redis::aio::ConnectionManager;
+use redis::{AsyncCommands, Client};
 use std::sync::Arc;
-use std::time::Duration;
 use tracing::{info, warn};
 
 #[derive(Debug, thiserror::Error)]
@@ -31,27 +29,21 @@ async fn handle_single_message(
     }
 }
 
-pub async fn handle_messages(
-    state: Arc<AppState>,
-    redis_client: Client,
-    mut redis_connection: ConnectionManager,
-) {
-    let mut reconnect_delay = Duration::from_millis(200);
+pub async fn handle_messages(state: Arc<AppState>, redis_client: Client) {
+    let mut msg_connection = redis_client
+        .get_connection_manager()
+        .await
+        .expect("Redis connection manager");
 
     'outer: loop {
-        let msg = pull_redis_message(&mut redis_connection).await;
+        let msg = pull_redis_message(&mut msg_connection).await;
 
         let message = match msg {
             Err(err) => {
-                warn!("Redis intake failed: {err}");
-                tokio::time::sleep(reconnect_delay).await;
-                reconnect_delay = (reconnect_delay * 2).min(Duration::from_secs(5));
+                warn!("Error handling message: {err}");
                 continue;
             }
-            Ok(msg) => {
-                reconnect_delay = Duration::from_millis(200);
-                msg
-            }
+            Ok(msg) => msg,
         };
 
         if let Some(msg) = message {
@@ -80,7 +72,7 @@ async fn pull_redis_message(
     }
 
     let val: Option<(String, String)> = connection
-        .blpop(&Environment::get().redis_queue_key, 1.0)
+        .blpop(&Environment::get().redis_queue_key, 0.0)
         .await?;
 
     let Some((_, val)) = val else {

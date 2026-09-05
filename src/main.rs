@@ -1,10 +1,10 @@
 use crate::environment::Environment;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
-use ::tracing::{error, info};
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Notify};
+use ::tracing::{error, info};
 
 mod messages;
 mod state;
@@ -63,7 +63,6 @@ async fn entrypoint() -> anyhow::Result<()> {
     });
 
     let client = redis_client::build_client()?;
-    let connection = redis_client::connect(&client).await?;
 
     info!("Started");
 
@@ -72,7 +71,7 @@ async fn entrypoint() -> anyhow::Result<()> {
         Environment::get().max_evaluations
     );
 
-    messages::handler::handle_messages(state, client, connection).await;
+    messages::handler::handle_messages(state, client).await;
 
     Ok(())
 }

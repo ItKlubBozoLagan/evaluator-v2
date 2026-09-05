@@ -1,6 +1,5 @@
 use std::cmp::min;
 use std::path::PathBuf;
-use std::time::Duration;
 use std::{env, fs};
 use tokio::sync::{OnceCell, SetError};
 
@@ -25,9 +24,6 @@ pub struct Environment {
     pub redis_ca_file: Option<PathBuf>,
     pub redis_require_tls: bool,
     pub redis_queue_key: String,
-    pub redis_connection_timeout: Duration,
-    pub redis_command_timeout: Duration,
-    pub redis_publish_attempts: u32,
     pub run_with_cgroups: bool,
     pub run_with_quotas: bool,
     pub exit_on_empty_queue: bool,
@@ -63,23 +59,6 @@ impl Environment {
                 .expect("REDIS_REQUIRE_TLS must be a boolean"),
             redis_queue_key: env::var("REDIS_QUEUE_KEY")
                 .unwrap_or("evaluator_msg_queue".to_string()),
-            redis_connection_timeout: Duration::from_millis(
-                env::var("REDIS_CONNECTION_TIMEOUT_MS")
-                    .unwrap_or("5000".to_string())
-                    .parse::<u64>()
-                    .expect("REDIS_CONNECTION_TIMEOUT_MS must be a number"),
-            ),
-            redis_command_timeout: Duration::from_millis(
-                env::var("REDIS_COMMAND_TIMEOUT_MS")
-                    .unwrap_or("5000".to_string())
-                    .parse::<u64>()
-                    .expect("REDIS_COMMAND_TIMEOUT_MS must be a number"),
-            ),
-            redis_publish_attempts: env::var("REDIS_PUBLISH_ATTEMPTS")
-                .unwrap_or("5".to_string())
-                .parse::<u32>()
-                .expect("REDIS_PUBLISH_ATTEMPTS must be a number")
-                .max(1),
             run_with_cgroups: env::var("RUN_WITH_CGROUPS")
                 .unwrap_or("true".to_string())
                 .parse::<bool>()
