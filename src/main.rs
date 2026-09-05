@@ -13,6 +13,7 @@ mod tracing;
 mod environment;
 mod evaluate;
 mod isolate;
+mod redis_client;
 mod util;
 
 fn main() -> anyhow::Result<()> {
@@ -61,7 +62,7 @@ async fn entrypoint() -> anyhow::Result<()> {
         available_boxes_notify: Notify::new(),
     });
 
-    let client = redis::Client::open(&*Environment::get().redis_url)?;
+    let client = redis_client::build_client()?;
 
     info!("Started");
 

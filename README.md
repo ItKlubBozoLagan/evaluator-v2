@@ -1,5 +1,13 @@
 # kontestis-evaluator-rs
 
+### Redis TLS
+
+```sh
+REDIS_URL=rediss://user:password@redis.example:6379/0
+REDIS_CA_FILE=/etc/redis-ca/ca.crt
+REDIS_REQUIRE_TLS=true
+```
+
 ### Docker
 A built release binary is needed for the docker build to work
 ```sh

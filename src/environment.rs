@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::path::PathBuf;
 use std::{env, fs};
 use tokio::sync::{OnceCell, SetError};
 
@@ -20,6 +21,8 @@ pub struct Environment {
     pub force_debug_logs: bool,
     pub max_evaluations: u8,
     pub redis_url: String,
+    pub redis_ca_file: Option<PathBuf>,
+    pub redis_require_tls: bool,
     pub redis_queue_key: String,
     pub run_with_cgroups: bool,
     pub run_with_quotas: bool,
@@ -49,6 +52,11 @@ impl Environment {
                 .parse::<u8>()
                 .expect("EVALUATOR_MAX_EVALUATIONS must be a number"),
             redis_url: env::var("REDIS_URL").unwrap_or("redis://localhost:6379".to_string()),
+            redis_ca_file: env::var_os("REDIS_CA_FILE").map(PathBuf::from),
+            redis_require_tls: env::var("REDIS_REQUIRE_TLS")
+                .unwrap_or("false".to_string())
+                .parse::<bool>()
+                .expect("REDIS_REQUIRE_TLS must be a boolean"),
             redis_queue_key: env::var("REDIS_QUEUE_KEY")
                 .unwrap_or("evaluator_msg_queue".to_string()),
             run_with_cgroups: env::var("RUN_WITH_CGROUPS")
@@ -75,6 +83,7 @@ impl Environment {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn init() -> Result<(), SetError<Environment>> {
         ENVIRONMENT.set(Environment::new())
     }
