@@ -77,6 +77,16 @@ pub async fn handle_messages(
             PullResult::Exit => break,
         };
 
+        if raw_message.len() > Environment::get().max_request_bytes {
+            let hash = hex::encode(crate::util::hash::sha256(raw_message.as_bytes()));
+            warn!(
+                payload_bytes = raw_message.len(),
+                payload_sha256 = hash,
+                "discarding oversized message"
+            );
+            continue;
+        }
+
         let message = match serde_json::from_str::<Message>(&raw_message) {
             Ok(message) => message,
             Err(err) => {
@@ -96,7 +106,14 @@ pub async fn handle_messages(
                 break;
             }
             Message::BeginEvaluation(meta) => {
-                run_evaluation(state.clone(), connection.clone(), meta, &mut jobs).await?;
+                run_evaluation(
+                    state.clone(),
+                    connection.clone(),
+                    raw_message.len(),
+                    meta,
+                    &mut jobs,
+                )
+                .await?;
             }
         }
     }

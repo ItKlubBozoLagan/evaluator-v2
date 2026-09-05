@@ -34,7 +34,7 @@ async fn run() -> anyhow::Result<()> {
     let environment = Environment::get();
     let client = redis_client::build_client()?;
     let connection = redis_client::connect(&client).await?;
-    let state = AppState::new(environment.max_evaluations);
+    let state = AppState::new(environment.max_evaluations, environment.memory_budget_kib);
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
     let mut health = tokio::spawn(health::serve(

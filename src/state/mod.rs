@@ -7,6 +7,7 @@ pub struct Admission {
     pub box_ids: Vec<u8>,
     free_box_ids: Arc<Mutex<Vec<u8>>>,
     _box_permit: OwnedSemaphorePermit,
+    _memory_permit: OwnedSemaphorePermit,
 }
 
 impl Drop for Admission {
@@ -21,7 +22,9 @@ impl Drop for Admission {
 pub struct AppState {
     boxes: Arc<Semaphore>,
     free_box_ids: Arc<Mutex<Vec<u8>>>,
+    memory: Arc<Semaphore>,
     total_boxes: usize,
+    total_memory_kib: u32,
     pub accepting: AtomicBool,
     pub redis_connected: AtomicBool,
     pub jobs_started: AtomicU64,
@@ -31,11 +34,13 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(total_boxes: u8) -> Arc<Self> {
+    pub fn new(total_boxes: u8, total_memory_kib: u32) -> Arc<Self> {
         Arc::new(Self {
             boxes: Arc::new(Semaphore::new(total_boxes as usize)),
             free_box_ids: Arc::new(Mutex::new((0..total_boxes).rev().collect())),
+            memory: Arc::new(Semaphore::new(total_memory_kib as usize)),
             total_boxes: total_boxes as usize,
+            total_memory_kib,
             accepting: AtomicBool::new(false),
             redis_connected: AtomicBool::new(false),
             jobs_started: AtomicU64::new(0),
@@ -45,7 +50,24 @@ impl AppState {
         })
     }
 
-    pub async fn admit(self: &Arc<Self>, needed_boxes: u32) -> anyhow::Result<Admission> {
+    pub async fn admit(
+        self: &Arc<Self>,
+        needed_boxes: u32,
+        requested_memory_kib: u32,
+    ) -> anyhow::Result<Admission> {
+        if requested_memory_kib > self.total_memory_kib {
+            anyhow::bail!(
+                "evaluation needs {requested_memory_kib} KiB but the worker budget is {} KiB",
+                self.total_memory_kib
+            );
+        }
+
+        let memory_permit = self
+            .memory
+            .clone()
+            .acquire_many_owned(requested_memory_kib)
+            .await
+            .map_err(|_| anyhow::anyhow!("worker admission is closed"))?;
         let box_permit = self
             .boxes
             .clone()
@@ -66,17 +88,21 @@ impl AppState {
             box_ids,
             free_box_ids: self.free_box_ids.clone(),
             _box_permit: box_permit,
+            _memory_permit: memory_permit,
         })
     }
 
     pub fn metrics(&self) -> String {
         let available_boxes = self.boxes.available_permits();
+        let available_memory = self.memory.available_permits();
         format!(
             concat!(
                 "evaluator_accepting_work {}\n",
                 "evaluator_redis_connected {}\n",
                 "evaluator_isolate_boxes_free {}\n",
                 "evaluator_isolate_boxes_used {}\n",
+                "evaluator_memory_configured_kib {}\n",
+                "evaluator_memory_allocated_kib {}\n",
                 "evaluator_jobs_started_total {}\n",
                 "evaluator_jobs_completed_total {}\n",
                 "evaluator_jobs_failed_total {}\n",
@@ -86,6 +112,8 @@ impl AppState {
             self.redis_connected.load(Ordering::Relaxed) as u8,
             available_boxes,
             self.total_boxes - available_boxes,
+            self.total_memory_kib,
+            self.total_memory_kib as usize - available_memory,
             self.jobs_started.load(Ordering::Relaxed),
             self.jobs_completed.load(Ordering::Relaxed),
             self.jobs_failed.load(Ordering::Relaxed),

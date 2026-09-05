@@ -10,6 +10,8 @@ REDIS_CA_FILE=/etc/redis-ca/ca.crt
 REDIS_REQUIRE_TLS=true
 REDIS_QUEUE_KEY=kontestis:production:evaluator:requests
 EVALUATOR_MAX_EVALUATIONS=2
+EVALUATOR_MEMORY_BUDGET_MIB=6144
+EVALUATOR_SYSTEM_MEMORY_RESERVE_MIB=1024
 RUN_WITH_CGROUPS=true
 RUN_WITH_QUOTAS=false
 COMPILE_CACHE_ENABLED=false
@@ -19,6 +21,10 @@ Optional Redis settings are `REDIS_CONNECTION_TIMEOUT_MS` (default `5000`),
 `REDIS_COMMAND_TIMEOUT_MS` (default `5000`), and `REDIS_PUBLISH_ATTEMPTS`
 (default `5`). `EVALUATOR_HEALTH_BIND` defaults to `0.0.0.0:8080` and serves
 `/live`, `/ready`, and `/metrics`.
+
+Request and process limits default to 64 MiB per serialized request, 1 MiB per
+source/checker/output stream, 256 testcases, and 64 MiB of aggregate testcase
+data. They can be adjusted with the corresponding `EVALUATOR_MAX_*` variables.
 
 ## Build
 

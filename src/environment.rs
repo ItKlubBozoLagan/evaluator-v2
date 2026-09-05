@@ -31,6 +31,14 @@ pub struct Environment {
     pub run_with_quotas: bool,
     pub exit_on_empty_queue: bool,
     pub compile_cache: Option<CompileCache>,
+    pub memory_budget_kib: u32,
+    pub system_memory_reserve_kib: u32,
+    pub max_request_bytes: usize,
+    pub max_source_bytes: usize,
+    pub max_checker_bytes: usize,
+    pub max_testcases: usize,
+    pub max_testcase_bytes: usize,
+    pub max_output_bytes: usize,
     pub health_bind: String,
     pub system_environment: SystemEnvironment,
 }
@@ -48,6 +56,17 @@ impl Environment {
         let max_evaluations = parse_env("EVALUATOR_MAX_EVALUATIONS", 2_u8)?;
         if max_evaluations < 2 {
             anyhow::bail!("EVALUATOR_MAX_EVALUATIONS must be at least 2");
+        }
+
+        let memory_budget_mib = parse_env("EVALUATOR_MEMORY_BUDGET_MIB", 4096_u32)?;
+        let system_memory_reserve_mib = parse_env("EVALUATOR_SYSTEM_MEMORY_RESERVE_MIB", 1024_u32)?;
+        if system_memory_reserve_mib < 1024 {
+            anyhow::bail!("EVALUATOR_SYSTEM_MEMORY_RESERVE_MIB must be at least 1024");
+        }
+        if memory_budget_mib <= system_memory_reserve_mib {
+            anyhow::bail!(
+                "EVALUATOR_MEMORY_BUDGET_MIB must exceed EVALUATOR_SYSTEM_MEMORY_RESERVE_MIB"
+            );
         }
 
         let redis_url = env::var("REDIS_URL").unwrap_or("redis://localhost:6379".to_string());
@@ -92,6 +111,18 @@ impl Environment {
             run_with_quotas: parse_env("RUN_WITH_QUOTAS", true)?,
             exit_on_empty_queue: parse_env("EXIT_ON_EMPTY_QUEUE", false)?,
             compile_cache,
+            memory_budget_kib: memory_budget_mib
+                .checked_mul(1024)
+                .ok_or_else(|| anyhow::anyhow!("memory budget is too large"))?,
+            system_memory_reserve_kib: system_memory_reserve_mib
+                .checked_mul(1024)
+                .ok_or_else(|| anyhow::anyhow!("system memory reserve is too large"))?,
+            max_request_bytes: parse_env("EVALUATOR_MAX_REQUEST_BYTES", 64_usize << 20)?,
+            max_source_bytes: parse_env("EVALUATOR_MAX_SOURCE_BYTES", 1_usize << 20)?,
+            max_checker_bytes: parse_env("EVALUATOR_MAX_CHECKER_BYTES", 1_usize << 20)?,
+            max_testcases: parse_env("EVALUATOR_MAX_TESTCASES", 256_usize)?,
+            max_testcase_bytes: parse_env("EVALUATOR_MAX_TESTCASE_BYTES", 64_usize << 20)?,
+            max_output_bytes: parse_env("EVALUATOR_MAX_OUTPUT_BYTES", 1_usize << 20)?,
             health_bind: env::var("EVALUATOR_HEALTH_BIND").unwrap_or("0.0.0.0:8080".to_string()),
             system_environment,
         })
