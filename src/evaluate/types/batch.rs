@@ -144,7 +144,7 @@ pub fn evaluate(
 
         testcase_results.push(result);
 
-        global_verdict = aggregate_verdict(&global_verdict, &result_verdict);
+        global_verdict = aggregate_verdict(global_verdict, result_verdict);
     }
 
     Ok(SuccessfulEvaluation {

@@ -132,17 +132,14 @@ impl SuccessfulEvaluation {
     }
 }
 
-pub fn aggregate_verdict(current: &Verdict, next: &Verdict) -> Verdict {
-    let current_is_success = matches!(current, Verdict::Accepted | Verdict::Custom(_));
+pub fn aggregate_verdict(current: Verdict, next: Verdict) -> Verdict {
     let next_is_failure = !matches!(next, Verdict::Accepted | Verdict::Custom(_));
 
-    if current_is_success && next_is_failure {
-        return next.clone();
+    // Preserve custom success details unless a later testcase fails.
+    if current == Verdict::Accepted || (matches!(current, Verdict::Custom(_)) && next_is_failure) {
+        return next;
     }
-    if matches!(current, Verdict::Accepted) {
-        return next.clone();
-    }
-    current.clone()
+    current
 }
 
 pub fn begin_evaluation(
@@ -171,7 +168,7 @@ mod tests {
     #[test]
     fn accepted_does_not_replace_an_earlier_failure() {
         assert_eq!(
-            aggregate_verdict(&Verdict::WrongAnswer, &Verdict::Accepted),
+            aggregate_verdict(Verdict::WrongAnswer, Verdict::Accepted),
             Verdict::WrongAnswer
         );
     }
@@ -179,7 +176,7 @@ mod tests {
     #[test]
     fn first_failure_is_preserved() {
         assert_eq!(
-            aggregate_verdict(&Verdict::TimeLimitExceeded, &Verdict::RuntimeError),
+            aggregate_verdict(Verdict::TimeLimitExceeded, Verdict::RuntimeError),
             Verdict::TimeLimitExceeded
         );
     }
