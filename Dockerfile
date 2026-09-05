@@ -12,10 +12,6 @@ WORKDIR /opt/isolate
 RUN make isolate isolate-cg-keeper default.cf
 
 FROM ${DEBIAN_IMAGE}
-ARG SOURCE_REVISION=unknown
-LABEL org.opencontainers.image.source="https://github.com/ItKlubBozoLagan/evaluator-v2" \
-      org.opencontainers.image.revision="${SOURCE_REVISION}"
-
 RUN echo "deb http://deb.debian.org/debian testing main" > /etc/apt/sources.list.d/testing.list
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -37,6 +33,10 @@ WORKDIR /app
 COPY target/release/kontestis-evaluator-v2 /app/evaluator
 COPY .docker /app/docker
 RUN chmod +x /app/docker/*.sh
+
+ARG SOURCE_REVISION=unknown
+LABEL org.opencontainers.image.source="https://github.com/ItKlubBozoLagan/evaluator-v2" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}"
 
 EXPOSE 8080
 CMD ["/app/docker/entry.sh"]
