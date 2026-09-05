@@ -1,11 +1,11 @@
 use crate::environment::Environment;
-use crate::evaluate::{EvaluationError, SuccessfulEvaluation, Verdict, begin_evaluation};
+use crate::evaluate::{begin_evaluation, EvaluationError, SuccessfulEvaluation, Verdict};
 use crate::messages::EvaluationMeta;
 use crate::state::AppState;
-use redis::AsyncCommands;
 use redis::aio::ConnectionManager;
-use std::sync::Arc;
+use redis::AsyncCommands;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinSet;
 use tracing::{error, info, warn};
@@ -56,17 +56,21 @@ fn evaluation_error(
     error: EvaluationError,
 ) -> SuccessfulEvaluation {
     match error {
-        EvaluationError::ContestantCompilation(message) => SuccessfulEvaluation::error(
+        EvaluationError::ContestantCompilation(inner) => SuccessfulEvaluation::error(
             evaluation.get_evaluation_id(),
-            Verdict::CompilationError(message.clone()),
-            message,
+            Verdict::CompilationError(inner.to_string()),
+            inner.to_string(),
         ),
-        EvaluationError::Judging(message) => {
-            SuccessfulEvaluation::error_for_evaluation(evaluation, Verdict::JudgingError, message)
-        }
-        EvaluationError::System(message) => {
-            SuccessfulEvaluation::error_for_evaluation(evaluation, Verdict::SystemError, message)
-        }
+        EvaluationError::Judging(inner) => SuccessfulEvaluation::error_for_evaluation(
+            evaluation,
+            Verdict::JudgingError,
+            inner.to_string(),
+        ),
+        EvaluationError::System(inner) => SuccessfulEvaluation::error_for_evaluation(
+            evaluation,
+            Verdict::SystemError,
+            inner.to_string(),
+        ),
     }
 }
 

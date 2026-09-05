@@ -2,7 +2,7 @@ use crate::evaluate::compilation::process_compilation;
 use crate::evaluate::output::{CheckerResult, OutputChecker};
 use crate::evaluate::runnable::{ProcessRunResult, RunnableProcess};
 use crate::evaluate::{
-    EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict, aggregate_verdict,
+    aggregate_verdict, EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict,
 };
 use crate::isolate::meta::ProcessStatus;
 use crate::isolate::{IsolateLimits, ProcessInput};

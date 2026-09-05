@@ -57,27 +57,25 @@ pub enum Verdict {
 #[derive(Debug, thiserror::Error)]
 pub enum EvaluationError {
     #[error("contestant compilation failed: {0}")]
-    ContestantCompilation(String),
+    ContestantCompilation(#[from] CompilationError),
     #[error("judging failed: {0}")]
-    Judging(String),
+    Judging(CompilationError),
     #[error("worker failed: {0}")]
-    System(String),
+    System(CompilationError),
 }
 
 impl EvaluationError {
     pub fn contestant_compilation(error: CompilationError) -> Self {
         match error {
-            CompilationError::CompilationProcessError(message) => {
-                Self::ContestantCompilation(message)
-            }
-            error => Self::System(error.to_string()),
+            CompilationError::CompilationProcessError(_) => Self::ContestantCompilation(error),
+            error => Self::System(error),
         }
     }
 
     pub fn judging_compilation(error: CompilationError) -> Self {
         match error {
-            CompilationError::CompilationProcessError(message) => Self::Judging(message),
-            error => Self::System(error.to_string()),
+            CompilationError::CompilationProcessError(_) => Self::Judging(error),
+            error => Self::System(error),
         }
     }
 }

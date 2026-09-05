@@ -2,12 +2,12 @@ use crate::evaluate::compilation::process_compilation;
 use crate::evaluate::output::CheckerResult;
 use crate::evaluate::runnable::{ProcessRunError, RunnableProcess};
 use crate::evaluate::{
-    EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict, aggregate_verdict,
+    aggregate_verdict, EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict,
 };
 use crate::isolate::meta::ProcessStatus;
 use crate::isolate::{IsolateError, IsolateLimits, ProcessInput};
 use crate::messages::{InteractiveEvaluation, Testcase};
-use crate::util::fd::{LargeWriteStrategy, SafeFdWriteError, write_to_fd_safe};
+use crate::util::fd::{write_to_fd_safe, LargeWriteStrategy, SafeFdWriteError};
 use crate::util::general::random_bytes;
 use std::fs;
 use std::fs::File;
@@ -118,10 +118,16 @@ fn interact_with_testcase(
     process.cleanup_and_reset()?;
     interactor.cleanup_and_reset()?;
 
-    let mut interactor_meta_file = File::open(&out_meta_file)?;
-    let mut interactor_result = String::new();
-    interactor_meta_file.read_to_string(&mut interactor_result)?;
-    fs::remove_file(&out_meta_file)?;
+    let interactor_result = {
+        let mut interactor_meta_file = File::open(&out_meta_file)?;
+
+        let mut buffer = String::new();
+        interactor_meta_file.read_to_string(&mut buffer)?;
+
+        fs::remove_file(&out_meta_file)?;
+
+        buffer
+    };
 
     let check_result = CheckerResult::try_from(interactor_result.trim());
 

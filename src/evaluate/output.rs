@@ -1,6 +1,6 @@
-use crate::evaluate::Verdict;
-use crate::evaluate::compilation::{CompilationError, process_compilation};
+use crate::evaluate::compilation::{process_compilation, CompilationError};
 use crate::evaluate::runnable::{ProcessRunError, RunnableProcess};
+use crate::evaluate::Verdict;
 use crate::isolate::{IsolateLimits, ProcessInput};
 use crate::messages::{CheckerData, Testcase};
 use crate::util::general::random_bytes;

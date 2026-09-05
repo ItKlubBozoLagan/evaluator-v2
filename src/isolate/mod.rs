@@ -115,6 +115,7 @@ impl IsolatedProcess {
         isolate_command.arg("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
         isolate_command.arg(format!("--processes={PID_LIMIT}"));
+
         if Environment::get().run_with_cgroups {
             isolate_command.arg("--cg");
         }
@@ -413,6 +414,7 @@ impl IsolatedProcess {
             .ok_or(IsolateError::ProcessNotRunning)?;
 
         let child_process = child.child.take().ok_or(IsolateError::ProcessNotRunning)?;
+
         let output = child_process.wait_with_output()?;
 
         // re-set because of take
@@ -420,6 +422,7 @@ impl IsolatedProcess {
             child: None,
             work_dir: child.work_dir,
         });
+
         Ok(output)
     }
 
@@ -427,6 +430,7 @@ impl IsolatedProcess {
         let (rx, tx) = nix::unistd::pipe()?;
 
         let handle = util::fd::write_to_fd_safe(tx.as_fd(), stdin, LargeWriteStrategy::Ignore)?;
+
         if let WriteHandle::Ignored = handle {
             return Ok(None);
         };
