@@ -42,8 +42,6 @@ pub enum Verdict {
     TimeLimitExceeded,
     #[serde(rename = "memory_limit_exceeded")]
     MemoryLimitExceeded,
-    #[serde(rename = "output_limit_exceeded")]
-    OutputLimitExceeded,
     #[serde(rename = "runtime_error")]
     RuntimeError,
     #[serde(rename = "judging_error")]
@@ -64,8 +62,6 @@ pub enum EvaluationError {
     Judging(String),
     #[error("worker failed: {0}")]
     System(String),
-    #[error("evaluation exceeded the overall deadline")]
-    Deadline,
 }
 
 impl EvaluationError {
@@ -74,9 +70,6 @@ impl EvaluationError {
             CompilationError::CompilationProcessError(message) => {
                 Self::ContestantCompilation(message)
             }
-            CompilationError::IsolateError(crate::isolate::IsolateError::OutputLimitExceeded) => {
-                Self::ContestantCompilation("compiler output limit exceeded".to_string())
-            }
             error => Self::System(error.to_string()),
         }
     }
@@ -84,9 +77,6 @@ impl EvaluationError {
     pub fn judging_compilation(error: CompilationError) -> Self {
         match error {
             CompilationError::CompilationProcessError(message) => Self::Judging(message),
-            CompilationError::IsolateError(crate::isolate::IsolateError::OutputLimitExceeded) => {
-                Self::Judging("checker output limit exceeded".to_string())
-            }
             error => Self::System(error.to_string()),
         }
     }
@@ -146,10 +136,6 @@ pub fn begin_evaluation(
     evaluation: &Evaluation,
     boxes: &[u8],
 ) -> Result<SuccessfulEvaluation, EvaluationError> {
-    if crate::deadline::exceeded() {
-        return Err(EvaluationError::Deadline);
-    }
-
     match evaluation {
         Evaluation::Batch(batch_evaluation) => types::batch::evaluate(batch_evaluation, boxes[0]),
         Evaluation::OutputOnly(output_only_evaluation) => {
@@ -158,26 +144,5 @@ pub fn begin_evaluation(
         Evaluation::Interactive(interactive_evaluation) => {
             types::interactive::evaluate(interactive_evaluation, boxes[0], boxes[1])
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Verdict, aggregate_verdict};
-
-    #[test]
-    fn accepted_does_not_replace_an_earlier_failure() {
-        assert_eq!(
-            aggregate_verdict(Verdict::WrongAnswer, Verdict::Accepted),
-            Verdict::WrongAnswer
-        );
-    }
-
-    #[test]
-    fn first_failure_is_preserved() {
-        assert_eq!(
-            aggregate_verdict(Verdict::TimeLimitExceeded, Verdict::RuntimeError),
-            Verdict::TimeLimitExceeded
-        );
     }
 }

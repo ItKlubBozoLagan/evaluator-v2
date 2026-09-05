@@ -3,16 +3,13 @@ pub mod meta;
 use crate::environment::Environment;
 use crate::isolate::meta::{ProcessMeta, ProcessStatus};
 use crate::util;
-use crate::util::fd::SafeFdWriteError;
+use crate::util::fd::{LargeWriteStrategy, SafeFdWriteError, WriteHandle};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::os::fd::{AsFd, OwnedFd};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -32,7 +29,6 @@ const MAX_OPEN_FILES_SYSTEM: u32 = 256;
 const MAX_WALL_TIME_LIMIT_SECONDS: f32 = 30.0;
 
 const PID_LIMIT: u32 = 1024;
-const MAX_SYSTEM_FILE_SIZE_KIB: usize = 256 * 1024;
 
 // https://github.com/ioi/isolate/issues/95
 const EXTRA_TIME_PERCENT: u8 = 125;
@@ -59,15 +55,6 @@ pub enum IsolateError {
 
     #[error("FD write error: {0}")]
     FdWriteError(#[from] SafeFdWriteError),
-
-    #[error("process output exceeded EVALUATOR_MAX_OUTPUT_BYTES")]
-    OutputLimitExceeded,
-
-    #[error("evaluation exceeded the overall deadline")]
-    DeadlineExceeded,
-
-    #[error("timed out draining process output")]
-    OutputDrainTimeout,
 
     #[error("isolate cleanup failed: {0}")]
     CleanupFailed(String),
@@ -128,13 +115,6 @@ impl IsolatedProcess {
         isolate_command.arg("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
         isolate_command.arg(format!("--processes={PID_LIMIT}"));
-        let max_file_size_kib = if command_meta.system {
-            MAX_SYSTEM_FILE_SIZE_KIB
-        } else {
-            Environment::get().max_output_bytes.div_ceil(1024).max(1)
-        };
-        isolate_command.arg(format!("--fsize={max_file_size_kib}"));
-
         if Environment::get().run_with_cgroups {
             isolate_command.arg("--cg");
         }
@@ -302,7 +282,7 @@ impl IsolatedProcess {
         isolate_command.stdout(Stdio::piped());
         isolate_command.stderr(Stdio::piped());
 
-        let out = wait_control_output(isolate_command.spawn()?)?;
+        let out = isolate_command.spawn()?.wait_with_output()?;
 
         if !out.status.success() {
             return Err(IsolateError::InitFailed(
@@ -432,81 +412,22 @@ impl IsolatedProcess {
             .take()
             .ok_or(IsolateError::ProcessNotRunning)?;
 
-        let mut child_process = child.child.take().ok_or(IsolateError::ProcessNotRunning)?;
-        let result = (|| {
-            let stdout = child_process.stdout.take();
-            let stderr = child_process
-                .stderr
-                .take()
-                .ok_or(IsolateError::ProcessNotRunning)?;
-            let output_limit = Environment::get().max_output_bytes;
-            let output_exceeded = Arc::new(AtomicBool::new(false));
-            let stdout_handle =
-                stdout.map(|stdout| read_bounded(stdout, output_limit, output_exceeded.clone()));
-            let stderr_handle = read_bounded(stderr, output_limit, output_exceeded.clone());
-
-            let mut deadline_exceeded = false;
-            let mut forced_termination = false;
-            let status = loop {
-                if output_exceeded.load(Ordering::Relaxed) {
-                    forced_termination = true;
-                    break terminate_isolate(&mut child_process)?;
-                }
-                if crate::deadline::remaining().is_some_and(|remaining| remaining.is_zero()) {
-                    deadline_exceeded = true;
-                    forced_termination = true;
-                    break terminate_isolate(&mut child_process)?;
-                }
-                if let Some(status) = child_process.try_wait()? {
-                    break status;
-                }
-                thread::sleep(Duration::from_millis(10));
-            };
-
-            let cleanup_result = forced_termination.then(|| cleanup_box(self.box_id));
-            let stdout = match stdout_handle {
-                Some(receiver) => receive_output(receiver)?,
-                None => Vec::new(),
-            };
-            let stderr = receive_output(stderr_handle)?;
-
-            if let Some(result) = cleanup_result {
-                result?;
-            }
-
-            if deadline_exceeded {
-                return Err(IsolateError::DeadlineExceeded);
-            }
-            if output_exceeded.load(Ordering::Relaxed) {
-                return Err(IsolateError::OutputLimitExceeded);
-            }
-
-            Ok(std::process::Output {
-                status,
-                stdout,
-                stderr,
-            })
-        })();
-
-        if result.is_err() {
-            if matches!(child_process.try_wait(), Ok(None)) {
-                let _ = terminate_isolate(&mut child_process);
-            }
-            let _ = cleanup_box(self.box_id);
-        }
+        let child_process = child.child.take().ok_or(IsolateError::ProcessNotRunning)?;
+        let output = child_process.wait_with_output()?;
 
         // re-set because of take
         self.running_child = Some(IsolateRunningChild {
             child: None,
             work_dir: child.work_dir,
         });
-        result
+        Ok(output)
     }
 
     fn write_stdin_to_pipe(&mut self, stdin: &[u8]) -> Result<Option<OwnedFd>, IsolateError> {
         let (rx, tx) = nix::unistd::pipe()?;
 
-        if !util::fd::write_to_fd_safe(tx.as_fd(), stdin)? {
+        let handle = util::fd::write_to_fd_safe(tx.as_fd(), stdin, LargeWriteStrategy::Ignore)?;
+        if let WriteHandle::Ignored = handle {
             return Ok(None);
         };
 
@@ -522,41 +443,6 @@ impl IsolatedProcess {
 
         Ok(())
     }
-}
-
-fn read_bounded(
-    mut stream: impl Read + Send + 'static,
-    limit: usize,
-    exceeded: Arc<AtomicBool>,
-) -> Receiver<std::io::Result<Vec<u8>>> {
-    let (sender, receiver) = mpsc::sync_channel(1);
-    thread::spawn(move || {
-        let result = (|| {
-            let mut output = Vec::with_capacity(limit.min(8192));
-            let mut buffer = [0_u8; 8192];
-            loop {
-                let read = stream.read(&mut buffer)?;
-                if read == 0 {
-                    return Ok(output);
-                }
-                let remaining = limit.saturating_sub(output.len());
-                output.extend_from_slice(&buffer[..read.min(remaining)]);
-                if read > remaining {
-                    exceeded.store(true, Ordering::Relaxed);
-                    return Ok(output);
-                }
-            }
-        })();
-        let _ = sender.send(result);
-    });
-    receiver
-}
-
-fn receive_output(receiver: Receiver<std::io::Result<Vec<u8>>>) -> Result<Vec<u8>, IsolateError> {
-    receiver
-        .recv_timeout(Duration::from_secs(2))
-        .map_err(|_| IsolateError::OutputDrainTimeout)?
-        .map_err(Into::into)
 }
 
 fn terminate_isolate(child: &mut Child) -> Result<std::process::ExitStatus, IsolateError> {
@@ -610,44 +496,10 @@ fn cleanup_box(box_id: u8) -> Result<(), IsolateError> {
     }
 }
 
-fn wait_control_output(mut child: Child) -> Result<std::process::Output, IsolateError> {
-    let timeout = crate::deadline::remaining()
-        .unwrap_or(Duration::from_secs(30))
-        .min(Duration::from_secs(30));
-    let deadline = Instant::now() + timeout;
-    loop {
-        if child.try_wait()?.is_some() {
-            return child.wait_with_output().map_err(Into::into);
-        }
-        if Instant::now() >= deadline {
-            child.kill()?;
-            let _ = child.wait();
-            return Err(IsolateError::DeadlineExceeded);
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
-}
-
 impl Drop for IsolatedProcess {
     fn drop(&mut self) {
         if self.running_child.is_some() {
             let _ = self.cleanup_and_reset();
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{read_bounded, receive_output};
-    use std::io::Cursor;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    #[test]
-    fn bounded_reader_truncates_and_reports_excess_output() {
-        let exceeded = Arc::new(AtomicBool::new(false));
-        let receiver = read_bounded(Cursor::new(b"abcdef".to_vec()), 3, exceeded.clone());
-        assert_eq!(receive_output(receiver).unwrap(), b"abc");
-        assert!(exceeded.load(Ordering::Relaxed));
     }
 }

@@ -24,8 +24,6 @@ pub struct Environment {
     pub redis_ca_file: Option<PathBuf>,
     pub redis_require_tls: bool,
     pub redis_queue_key: String,
-    pub redis_response_key_prefix: String,
-    pub redis_dead_letter_key: String,
     pub redis_connection_timeout: Duration,
     pub redis_command_timeout: Duration,
     pub redis_publish_attempts: u32,
@@ -33,15 +31,6 @@ pub struct Environment {
     pub run_with_quotas: bool,
     pub exit_on_empty_queue: bool,
     pub compile_cache: Option<CompileCache>,
-    pub memory_budget_kib: u32,
-    pub system_memory_reserve_kib: u32,
-    pub max_request_bytes: usize,
-    pub max_source_bytes: usize,
-    pub max_checker_bytes: usize,
-    pub max_testcases: usize,
-    pub max_testcase_bytes: usize,
-    pub max_output_bytes: usize,
-    pub job_timeout: Duration,
     pub health_bind: String,
     pub system_environment: SystemEnvironment,
 }
@@ -61,17 +50,6 @@ impl Environment {
             anyhow::bail!("EVALUATOR_MAX_EVALUATIONS must be at least 2");
         }
 
-        let memory_budget_mib = parse_env("EVALUATOR_MEMORY_BUDGET_MIB", 4096_u32)?;
-        let system_memory_reserve_mib = parse_env("EVALUATOR_SYSTEM_MEMORY_RESERVE_MIB", 1024_u32)?;
-        if system_memory_reserve_mib < 1024 {
-            anyhow::bail!("EVALUATOR_SYSTEM_MEMORY_RESERVE_MIB must be at least 1024");
-        }
-        if memory_budget_mib <= system_memory_reserve_mib {
-            anyhow::bail!(
-                "EVALUATOR_MEMORY_BUDGET_MIB must exceed EVALUATOR_SYSTEM_MEMORY_RESERVE_MIB"
-            );
-        }
-
         let redis_url = env::var("REDIS_URL").unwrap_or("redis://localhost:6379".to_string());
         let redis_require_tls = parse_env("REDIS_REQUIRE_TLS", false)?;
         if redis_require_tls && !redis_url.starts_with("rediss://") {
@@ -83,10 +61,8 @@ impl Environment {
 
         let redis_queue_key =
             env::var("REDIS_QUEUE_KEY").unwrap_or("evaluator_msg_queue".to_string());
-        let redis_response_key_prefix =
-            env::var("REDIS_RESPONSE_KEY_PREFIX").unwrap_or("evaluator_evaluations".to_string());
-        if redis_queue_key.is_empty() || redis_response_key_prefix.is_empty() {
-            anyhow::bail!("Redis queue keys and prefixes must not be empty");
+        if redis_queue_key.is_empty() {
+            anyhow::bail!("REDIS_QUEUE_KEY must not be empty");
         }
 
         let compile_cache = parse_env("COMPILE_CACHE_ENABLED", false)?
@@ -102,10 +78,7 @@ impl Environment {
             redis_url,
             redis_ca_file: env::var_os("REDIS_CA_FILE").map(PathBuf::from),
             redis_require_tls,
-            redis_queue_key: redis_queue_key.clone(),
-            redis_response_key_prefix,
-            redis_dead_letter_key: env::var("REDIS_DEAD_LETTER_KEY")
-                .unwrap_or_else(|_| format!("{redis_queue_key}:dead-letter")),
+            redis_queue_key,
             redis_connection_timeout: Duration::from_millis(parse_env(
                 "REDIS_CONNECTION_TIMEOUT_MS",
                 5000_u64,
@@ -119,19 +92,6 @@ impl Environment {
             run_with_quotas: parse_env("RUN_WITH_QUOTAS", true)?,
             exit_on_empty_queue: parse_env("EXIT_ON_EMPTY_QUEUE", false)?,
             compile_cache,
-            memory_budget_kib: memory_budget_mib
-                .checked_mul(1024)
-                .ok_or_else(|| anyhow::anyhow!("memory budget is too large"))?,
-            system_memory_reserve_kib: system_memory_reserve_mib
-                .checked_mul(1024)
-                .ok_or_else(|| anyhow::anyhow!("system memory reserve is too large"))?,
-            max_request_bytes: parse_env("EVALUATOR_MAX_REQUEST_BYTES", 64_usize << 20)?,
-            max_source_bytes: parse_env("EVALUATOR_MAX_SOURCE_BYTES", 1_usize << 20)?,
-            max_checker_bytes: parse_env("EVALUATOR_MAX_CHECKER_BYTES", 1_usize << 20)?,
-            max_testcases: parse_env("EVALUATOR_MAX_TESTCASES", 256_usize)?,
-            max_testcase_bytes: parse_env("EVALUATOR_MAX_TESTCASE_BYTES", 64_usize << 20)?,
-            max_output_bytes: parse_env("EVALUATOR_MAX_OUTPUT_BYTES", 1_usize << 20)?,
-            job_timeout: Duration::from_secs(parse_env("EVALUATOR_JOB_TIMEOUT_SECONDS", 300_u64)?),
             health_bind: env::var("EVALUATOR_HEALTH_BIND").unwrap_or("0.0.0.0:8080".to_string()),
             system_environment,
         })

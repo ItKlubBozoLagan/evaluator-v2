@@ -1,6 +1,6 @@
 use crate::evaluate::compilation::process_compilation;
 use crate::evaluate::output::{CheckerResult, OutputChecker};
-use crate::evaluate::runnable::{ProcessRunError, ProcessRunResult, RunnableProcess};
+use crate::evaluate::runnable::{ProcessRunResult, RunnableProcess};
 use crate::evaluate::{
     EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict, aggregate_verdict,
 };
@@ -25,17 +25,9 @@ fn evaluate_with_testcase(
     let ProcessRunResult { output, meta } = match running_process {
         Ok(it) => it,
         Err(err) => {
-            let verdict = if matches!(
-                err,
-                ProcessRunError::IsolateError(crate::isolate::IsolateError::OutputLimitExceeded)
-            ) {
-                Verdict::OutputLimitExceeded
-            } else {
-                Verdict::SystemError
-            };
             return TestcaseResult {
                 id: testcase.id.clone(),
-                verdict,
+                verdict: Verdict::SystemError,
                 memory: 0,
                 time: 0,
                 output: None,
@@ -115,9 +107,6 @@ pub fn evaluate(
     let mut testcase_results = Vec::<TestcaseResult>::new();
 
     for testcase in &evaluation.testcases {
-        if crate::deadline::exceeded() {
-            return Err(EvaluationError::Deadline);
-        }
         if !evaluation.evaluate_all
             && (global_verdict != Verdict::Accepted
                 && !matches!(global_verdict, Verdict::Custom(_)))

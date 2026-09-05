@@ -1,8 +1,8 @@
 use crate::environment::Environment;
 use std::cmp::min;
-use std::os::fd::{AsRawFd, BorrowedFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, warn};
 
 #[derive(Error, Debug)]
 pub enum SafeFdWriteError {
@@ -13,7 +13,34 @@ pub enum SafeFdWriteError {
     IOError(#[from] std::io::Error),
 }
 
-pub fn write_to_fd_safe(fd: BorrowedFd, input: &[u8]) -> Result<bool, SafeFdWriteError> {
+#[derive(Debug)]
+pub enum WriteHandle {
+    Ignored,
+    Direct,
+    Async(Option<std::thread::JoinHandle<()>>),
+}
+
+#[derive(Debug)]
+pub enum LargeWriteStrategy {
+    Async,
+    Ignore,
+}
+
+impl Drop for WriteHandle {
+    fn drop(&mut self) {
+        if let WriteHandle::Async(handle) = self
+            && let Some(handle) = handle.take()
+        {
+            let _ = handle.join();
+        }
+    }
+}
+
+pub fn write_to_fd_safe(
+    fd: BorrowedFd,
+    input: &[u8],
+    strategy: LargeWriteStrategy,
+) -> Result<WriteHandle, SafeFdWriteError> {
     let current_pipe_buf_size =
         nix::fcntl::fcntl(fd.as_raw_fd(), nix::fcntl::FcntlArg::F_GETPIPE_SZ)?;
 
@@ -22,7 +49,7 @@ pub fn write_to_fd_safe(fd: BorrowedFd, input: &[u8]) -> Result<bool, SafeFdWrit
     if input_size < (current_pipe_buf_size as usize) {
         write_all_fd(fd, input)?;
 
-        return Ok(true);
+        return Ok(WriteHandle::Direct);
     }
 
     let needed_pipe_buf = min(
@@ -43,10 +70,22 @@ pub fn write_to_fd_safe(fd: BorrowedFd, input: &[u8]) -> Result<bool, SafeFdWrit
     if input_size < needed_pipe_buf {
         write_all_fd(fd, input)?;
 
-        return Ok(true);
+        return Ok(WriteHandle::Direct);
     }
 
-    Ok(false)
+    match strategy {
+        LargeWriteStrategy::Async => {
+            let fd = fd.try_clone_to_owned()?;
+            let input = input.to_vec();
+            let handle = std::thread::spawn(move || {
+                if let Err(err) = write_all_fd(fd.as_fd(), &input) {
+                    warn!("failed to write to interactive pipe: {err}");
+                }
+            });
+            Ok(WriteHandle::Async(Some(handle)))
+        }
+        LargeWriteStrategy::Ignore => Ok(WriteHandle::Ignored),
+    }
 }
 
 fn write_all_fd(fd: BorrowedFd<'_>, mut input: &[u8]) -> Result<(), SafeFdWriteError> {

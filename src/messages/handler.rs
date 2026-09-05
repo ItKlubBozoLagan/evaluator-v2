@@ -1,5 +1,5 @@
 use crate::environment::Environment;
-use crate::evaluate::queue_handler::{dead_letter, run_evaluation};
+use crate::evaluate::queue_handler::run_evaluation;
 use crate::messages::{Message, SystemMessage};
 use crate::state::AppState;
 use redis::AsyncCommands;
@@ -77,22 +77,15 @@ pub async fn handle_messages(
             PullResult::Exit => break,
         };
 
-        if raw_message.len() > Environment::get().max_request_bytes {
-            dead_letter(
-                state.clone(),
-                connection.clone(),
-                &raw_message,
-                "serialized request exceeds configured limit",
-            )
-            .await?;
-            continue;
-        }
-
         let message = match serde_json::from_str::<Message>(&raw_message) {
             Ok(message) => message,
             Err(err) => {
-                let reason = format!("invalid JSON message: {err}");
-                dead_letter(state.clone(), connection.clone(), &raw_message, &reason).await?;
+                let hash = hex::encode(crate::util::hash::sha256(raw_message.as_bytes()));
+                warn!(
+                    payload_bytes = raw_message.len(),
+                    payload_sha256 = hash,
+                    "discarding malformed message: {err}"
+                );
                 continue;
             }
         };
@@ -103,23 +96,7 @@ pub async fn handle_messages(
                 break;
             }
             Message::BeginEvaluation(meta) => {
-                if let Err(err) = run_evaluation(
-                    state.clone(),
-                    connection.clone(),
-                    raw_message.len(),
-                    meta,
-                    &mut jobs,
-                )
-                .await
-                {
-                    dead_letter(
-                        state.clone(),
-                        connection.clone(),
-                        &raw_message,
-                        &err.to_string(),
-                    )
-                    .await?;
-                }
+                run_evaluation(state.clone(), connection.clone(), meta, &mut jobs).await?;
             }
         }
     }
