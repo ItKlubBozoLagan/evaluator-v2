@@ -2,7 +2,7 @@ use std::cmp::min;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fs};
-use tokio::sync::OnceCell;
+use tokio::sync::{OnceCell, SetError};
 
 // 2 MiB
 const HARD_PIPE_MAX_SIZE_LIMIT: usize = 2 << 20;
@@ -104,10 +104,9 @@ impl Environment {
         }
     }
 
-    pub fn init() -> anyhow::Result<()> {
-        ENVIRONMENT
-            .set(Environment::new())
-            .map_err(|_| anyhow::anyhow!("environment already initialized"))
+    #[allow(clippy::result_large_err)]
+    pub fn init() -> Result<(), SetError<Environment>> {
+        ENVIRONMENT.set(Environment::new())
     }
 
     pub fn get() -> &'static Environment {
