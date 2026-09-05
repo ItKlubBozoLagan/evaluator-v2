@@ -3,6 +3,7 @@ use crate::evaluate::queue_handler::handle_evaluation;
 use crate::messages::{Message, SystemMessage};
 use crate::state::AppState;
 use redis::AsyncCommands;
+use redis::Client;
 use redis::aio::ConnectionManager;
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,15 +23,19 @@ pub enum MessageResult {
 async fn handle_single_message(
     state: Arc<AppState>,
     message: Message,
-    redis_connection: &ConnectionManager,
+    redis_client: &Client,
 ) -> MessageResult {
     match message {
         Message::System(SystemMessage::Exit) => MessageResult::Exit,
-        Message::BeginEvaluation(meta) => handle_evaluation(state, redis_connection, meta).await,
+        Message::BeginEvaluation(meta) => handle_evaluation(state, redis_client, meta).await,
     }
 }
 
-pub async fn handle_messages(state: Arc<AppState>, mut redis_connection: ConnectionManager) {
+pub async fn handle_messages(
+    state: Arc<AppState>,
+    redis_client: Client,
+    mut redis_connection: ConnectionManager,
+) {
     let mut reconnect_delay = Duration::from_millis(200);
 
     'outer: loop {
@@ -50,7 +55,7 @@ pub async fn handle_messages(state: Arc<AppState>, mut redis_connection: Connect
         };
 
         if let Some(msg) = message {
-            let result = handle_single_message(state.clone(), msg, &redis_connection).await;
+            let result = handle_single_message(state.clone(), msg, &redis_client).await;
             match result {
                 MessageResult::Continue => {}
                 MessageResult::Exit => {

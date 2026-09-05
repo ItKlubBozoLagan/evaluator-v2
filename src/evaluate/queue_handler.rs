@@ -5,7 +5,7 @@ use crate::messages::handler::MessageResult;
 use crate::messages::{Evaluation, EvaluationMeta};
 use crate::state::AppState;
 use redis::AsyncCommands;
-use redis::aio::ConnectionManager;
+use redis::Client;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Handle;
@@ -27,7 +27,7 @@ pub async fn wait_for_available_boxes(state: Arc<AppState>) {
 
 pub async fn handle_evaluation(
     state: Arc<AppState>,
-    redis_connection: &ConnectionManager,
+    redis_client: &Client,
     EvaluationMeta {
         output_queue,
         evaluation,
@@ -59,7 +59,7 @@ pub async fn handle_evaluation(
 
     drop(used_box_ids);
 
-    let publish_connection = redis_connection.clone();
+    let publish_client = redis_client.clone();
     let handle_state = state.clone();
     Handle::current().spawn_blocking(move || {
         info!(
@@ -107,11 +107,8 @@ pub async fn handle_evaluation(
         let output_json =
             serde_json::to_string(&result).expect("evaluation to json should have worked");
 
-        let publish_result = Handle::current().block_on(publish_result(
-            publish_connection,
-            &output_queue,
-            &output_json,
-        ));
+        let publish_result =
+            Handle::current().block_on(publish_result(publish_client, &output_queue, &output_json));
 
         if let Err(err) = publish_result {
             error!("Failed to publish evaluation result: {err}");
@@ -127,7 +124,7 @@ pub async fn handle_evaluation(
 }
 
 async fn publish_result(
-    mut connection: ConnectionManager,
+    client: Client,
     output_queue: &str,
     output_json: &str,
 ) -> redis::RedisResult<()> {
@@ -135,7 +132,13 @@ async fn publish_result(
     let mut delay = Duration::from_millis(200);
 
     for attempt in 1..=attempts {
-        match connection.rpush(output_queue, output_json).await {
+        let result = async {
+            let mut connection = client.get_multiplexed_async_connection().await?;
+            connection.rpush(output_queue, output_json).await
+        }
+        .await;
+
+        match result {
             Ok(()) => return Ok(()),
             Err(err) if attempt < attempts => {
                 warn!(attempt, "result publication failed, retrying: {err}");

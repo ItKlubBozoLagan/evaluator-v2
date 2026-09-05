@@ -72,7 +72,7 @@ async fn entrypoint() -> anyhow::Result<()> {
         Environment::get().max_evaluations
     );
 
-    messages::handler::handle_messages(state, connection).await;
+    messages::handler::handle_messages(state, client, connection).await;
 
     Ok(())
 }
