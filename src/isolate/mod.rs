@@ -10,8 +10,6 @@ use std::io::Write;
 use std::os::fd::{AsFd, OwnedFd};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
 
 const ISOLATE_BINARY_LOCATION: &str = "/usr/local/bin/isolate";
 
@@ -55,9 +53,6 @@ pub enum IsolateError {
 
     #[error("FD write error: {0}")]
     FdWriteError(#[from] SafeFdWriteError),
-
-    #[error("isolate cleanup failed: {0}")]
-    CleanupFailed(String),
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +92,8 @@ pub struct IsolatedProcess {
     dir_mounts: Vec<String>,
 
     running_child: Option<IsolateRunningChild>,
+
+    write_handle: Option<WriteHandle>,
 }
 
 impl IsolatedProcess {
@@ -154,6 +151,7 @@ impl IsolatedProcess {
             command_meta: command_meta.clone(),
             command: isolate_command,
             dir_mounts,
+            write_handle: None,
             running_child: None,
         })
     }
@@ -303,35 +301,27 @@ impl IsolatedProcess {
     }
 
     pub fn cleanup_and_reset(&mut self) -> Result<(), IsolateError> {
-        let termination_result = if let Some(child) = self
-            .running_child
-            .as_mut()
-            .and_then(|running| running.child.as_mut())
-        {
-            terminate_isolate(child).map(|_| ())
-        } else {
-            Ok(())
-        };
-        let cleanup_result = cleanup_box(self.box_id);
-        if let Some(child) = self
-            .running_child
-            .as_mut()
-            .and_then(|running| running.child.as_mut())
-            && matches!(child.try_wait(), Ok(None))
-        {
-            let _ = child.kill();
-            let _ = child.wait();
+        let mut isolate_command = Command::new(ISOLATE_BINARY_LOCATION);
+
+        isolate_command.arg("--box-id");
+        isolate_command.arg(format!("{}", self.box_id));
+
+        if Environment::get().run_with_cgroups {
+            isolate_command.arg("--cg");
         }
-        let meta_result: Result<(), IsolateError> =
-            match std::fs::remove_file(format!("/tmp/.meta-{}", self.box_id)) {
-                Ok(()) => Ok(()),
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                Err(err) => Err(err.into()),
-            };
+
+        isolate_command.arg("--cleanup");
+
+        isolate_command.stdout(Stdio::piped());
+        isolate_command.stderr(Stdio::piped());
+
+        let child = isolate_command.spawn()?;
+
+        child.wait_with_output()?;
+
+        std::fs::remove_file(format!("/tmp/.meta-{}", self.box_id))?;
+
         self.running_child = None;
-        termination_result?;
-        cleanup_result?;
-        meta_result?;
         Ok(())
     }
 
@@ -417,6 +407,10 @@ impl IsolatedProcess {
 
         let output = child_process.wait_with_output()?;
 
+        if let Some(handle) = self.write_handle.take() {
+            drop(handle);
+        }
+
         // re-set because of take
         self.running_child = Some(IsolateRunningChild {
             child: None,
@@ -435,6 +429,8 @@ impl IsolatedProcess {
             return Ok(None);
         };
 
+        self.write_handle = Some(handle);
+
         Ok(Some(rx))
     }
 
@@ -446,57 +442,6 @@ impl IsolatedProcess {
             .map_err(|err| IsolateError::StdinIntoFileError(err.to_string()))?;
 
         Ok(())
-    }
-}
-
-fn terminate_isolate(child: &mut Child) -> Result<std::process::ExitStatus, IsolateError> {
-    let signal_result = unsafe { libc::kill(child.id() as i32, libc::SIGTERM) };
-    if signal_result != 0 && std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH) {
-        return Err(std::io::Error::last_os_error().into());
-    }
-
-    let deadline = Instant::now() + Duration::from_secs(2);
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return Ok(status);
-        }
-        if Instant::now() >= deadline {
-            child.kill()?;
-            return Ok(child.wait()?);
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
-}
-
-fn cleanup_box(box_id: u8) -> Result<(), IsolateError> {
-    let mut command = Command::new(ISOLATE_BINARY_LOCATION);
-    command.arg("--box-id").arg(box_id.to_string());
-    if Environment::get().run_with_cgroups {
-        command.arg("--cg");
-    }
-    command
-        .arg("--cleanup")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    let mut child = command.spawn()?;
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        if let Some(status) = child.try_wait()? {
-            if status.success() {
-                return Ok(());
-            }
-            return Err(IsolateError::CleanupFailed(format!(
-                "isolate exited with {status}"
-            )));
-        }
-        if Instant::now() >= deadline {
-            child.kill()?;
-            let _ = child.wait();
-            return Err(IsolateError::CleanupFailed(
-                "isolate cleanup timed out".to_string(),
-            ));
-        }
-        thread::sleep(Duration::from_millis(10));
     }
 }
 

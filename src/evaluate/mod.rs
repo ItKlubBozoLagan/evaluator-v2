@@ -54,86 +54,10 @@ pub enum Verdict {
     Skipped,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum EvaluationError {
-    #[error("contestant compilation failed: {0}")]
-    ContestantCompilation(#[from] CompilationError),
-    #[error("judging failed: {0}")]
-    Judging(CompilationError),
-    #[error("worker failed: {0}")]
-    System(CompilationError),
-}
-
-impl EvaluationError {
-    pub fn contestant_compilation(error: CompilationError) -> Self {
-        match error {
-            CompilationError::CompilationProcessError(_) => Self::ContestantCompilation(error),
-            error => Self::System(error),
-        }
-    }
-
-    pub fn judging_compilation(error: CompilationError) -> Self {
-        match error {
-            CompilationError::CompilationProcessError(_) => Self::Judging(error),
-            error => Self::System(error),
-        }
-    }
-}
-
-impl SuccessfulEvaluation {
-    pub fn error(evaluation_id: u64, verdict: Verdict, message: String) -> Self {
-        Self {
-            evaluation_id,
-            verdict,
-            max_time: 0,
-            max_memory: 0,
-            testcases: vec![],
-            compiler_output: Some(message),
-        }
-    }
-
-    pub fn error_for_evaluation(
-        evaluation: &Evaluation,
-        verdict: Verdict,
-        message: String,
-    ) -> Self {
-        let testcases = evaluation
-            .testcases()
-            .iter()
-            .map(|testcase| TestcaseResult {
-                id: testcase.id.clone(),
-                verdict: verdict.clone(),
-                time: 0,
-                memory: 0,
-                output: None,
-                error: Some(message.clone()),
-            })
-            .collect();
-        Self {
-            evaluation_id: evaluation.get_evaluation_id(),
-            verdict,
-            max_time: 0,
-            max_memory: 0,
-            testcases,
-            compiler_output: None,
-        }
-    }
-}
-
-pub fn aggregate_verdict(current: Verdict, next: Verdict) -> Verdict {
-    let next_is_failure = !matches!(next, Verdict::Accepted | Verdict::Custom(_));
-
-    // Preserve custom success details unless a later testcase fails.
-    if current == Verdict::Accepted || (matches!(current, Verdict::Custom(_)) && next_is_failure) {
-        return next;
-    }
-    current
-}
-
 pub fn begin_evaluation(
     evaluation: &Evaluation,
     boxes: &[u8],
-) -> Result<SuccessfulEvaluation, EvaluationError> {
+) -> Result<SuccessfulEvaluation, CompilationError> {
     match evaluation {
         Evaluation::Batch(batch_evaluation) => types::batch::evaluate(batch_evaluation, boxes[0]),
         Evaluation::OutputOnly(output_only_evaluation) => {

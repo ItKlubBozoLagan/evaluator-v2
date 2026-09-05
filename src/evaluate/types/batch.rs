@@ -1,9 +1,7 @@
-use crate::evaluate::compilation::process_compilation;
+use crate::evaluate::compilation::{process_compilation, CompilationError};
 use crate::evaluate::output::{CheckerResult, OutputChecker};
 use crate::evaluate::runnable::{ProcessRunResult, RunnableProcess};
-use crate::evaluate::{
-    aggregate_verdict, EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict,
-};
+use crate::evaluate::{SuccessfulEvaluation, TestcaseResult, Verdict};
 use crate::isolate::meta::ProcessStatus;
 use crate::isolate::{IsolateLimits, ProcessInput};
 use crate::messages::{BatchEvaluation, Testcase};
@@ -32,7 +30,7 @@ fn evaluate_with_testcase(
                 time: 0,
                 output: None,
                 error: Some(err.to_string()),
-            };
+            }
         }
     };
 
@@ -40,11 +38,12 @@ fn evaluate_with_testcase(
 
     // FIXME: repeated
     if !output.status.success() {
-        let verdict = match meta.status {
-            Some(ProcessStatus::TimedOut) => Verdict::TimeLimitExceeded,
-            Some(ProcessStatus::SandboxError) => Verdict::SystemError,
-            _ if meta.cg_oom_killed => Verdict::MemoryLimitExceeded,
-            _ => Verdict::RuntimeError,
+        let verdict = if let Some(ProcessStatus::TimedOut) = meta.status {
+            Verdict::TimeLimitExceeded
+        } else if meta.cg_oom_killed {
+            Verdict::MemoryLimitExceeded
+        } else {
+            Verdict::RuntimeError
         };
 
         return TestcaseResult {
@@ -67,7 +66,7 @@ fn evaluate_with_testcase(
                 time: 0,
                 output: None,
                 error: Some(err.to_string()),
-            };
+            }
         }
     };
 
@@ -90,12 +89,10 @@ fn evaluate_with_testcase(
 pub fn evaluate(
     evaluation: &BatchEvaluation,
     box_id: u8,
-) -> Result<SuccessfulEvaluation, EvaluationError> {
-    let compilation_result = process_compilation(&evaluation.code, &evaluation.language, box_id)
-        .map_err(EvaluationError::contestant_compilation)?;
+) -> Result<SuccessfulEvaluation, CompilationError> {
+    let compilation_result = process_compilation(&evaluation.code, &evaluation.language, box_id)?;
 
-    let checker = OutputChecker::try_from((box_id, &evaluation.checker))
-        .map_err(EvaluationError::judging_compilation)?;
+    let checker = OutputChecker::try_from((box_id, &evaluation.checker))?;
 
     let limits = IsolateLimits {
         time_limit: evaluation.time_limit as f32 / 1000.0,
@@ -107,10 +104,7 @@ pub fn evaluate(
     let mut testcase_results = Vec::<TestcaseResult>::new();
 
     for testcase in &evaluation.testcases {
-        if !evaluation.evaluate_all
-            && (global_verdict != Verdict::Accepted
-                && !matches!(global_verdict, Verdict::Custom(_)))
-        {
+        if !evaluation.evaluate_all && (global_verdict != Verdict::Accepted && !matches!(global_verdict, Verdict::Custom(_))) {
             testcase_results.push(TestcaseResult {
                 id: testcase.id.clone(),
                 verdict: Verdict::Skipped,
@@ -133,7 +127,7 @@ pub fn evaluate(
 
         testcase_results.push(result);
 
-        global_verdict = aggregate_verdict(global_verdict, result_verdict);
+        global_verdict = result_verdict;
     }
 
     Ok(SuccessfulEvaluation {

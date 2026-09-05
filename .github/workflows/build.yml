@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: "🐳 Build"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       contents: "read"
       id-token: "write"
@@ -32,7 +32,7 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Build crate
-        run: cargo build --release --locked
+        run: cargo build --release
 
       - id: auth
         name: Autenticate with GCP
@@ -60,24 +60,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        id: image
         uses: docker/build-push-action@v3
         with:
           push: true
           context: .
-          build-args: SOURCE_REVISION=${{ github.sha }}
-          tags: |
-            eu.gcr.io/speedy-baton-368023/kontestis-evaluator-rs:latest
-            ghcr.io/itklubbozolagan/kontestis-evaluator-rs:${{ github.sha }}
-            ghcr.io/itklubbozolagan/kontestis-evaluator-rs:latest
-
-      - name: Record image digest
-        run: printf '%s\n' '${{ steps.image.outputs.digest }}' >> "$GITHUB_STEP_SUMMARY"
-
+          tags: eu.gcr.io/speedy-baton-368023/kontestis-evaluator-rs:latest,ghcr.io/itklubbozolagan/kontestis-evaluator-rs:latest
   release:
     name: "🚚 Release"
     runs-on: ubuntu-latest
-    needs: [ "build" ]
+    needs: ["build"]
     steps:
       - name: "Set up kubectl"
         uses: azure/setup-kubectl@v3
@@ -87,3 +78,4 @@ jobs:
 
       - name: "Rollout an application update"
         run: "kubectl rollout restart deployment evaluator-staging -n kontestis"
+

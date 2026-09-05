@@ -15,7 +15,6 @@ pub enum ProcessRunError {
 #[derive(Debug)]
 pub struct CompiledProcessData {
     pub executable_path: PathBuf,
-    pub temporary: bool,
 }
 
 #[derive(Debug)]
@@ -26,7 +25,6 @@ pub struct PythonProcessData {
 #[derive(Debug)]
 pub struct JavaProcessData {
     pub built_class_name: PathBuf,
-    pub temporary: bool,
 }
 
 #[derive(Debug)]
@@ -34,19 +32,6 @@ pub enum RunnableProcess {
     Compiled(CompiledProcessData),
     Python(PythonProcessData),
     Java(JavaProcessData),
-}
-
-impl Drop for RunnableProcess {
-    fn drop(&mut self) {
-        let path = match self {
-            RunnableProcess::Compiled(data) if data.temporary => Some(&data.executable_path),
-            RunnableProcess::Java(data) if data.temporary => Some(&data.built_class_name),
-            _ => None,
-        };
-        if let Some(path) = path {
-            let _ = std::fs::remove_file(path);
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -84,17 +69,15 @@ impl RunnableProcess {
         let mut process = self.as_isolated(exec_id, limits)?;
 
         match self {
-            RunnableProcess::Compiled(CompiledProcessData {
-                executable_path, ..
-            }) => process.spawn_with_hooks(input, output_pipe, |isolated| {
-                isolated.copy_in_box(executable_path, "program")
-            })?,
+            RunnableProcess::Compiled(CompiledProcessData { executable_path }) => process
+                .spawn_with_hooks(input, output_pipe, |isolated| {
+                    isolated.copy_in_box(executable_path, "program")
+                })?,
             RunnableProcess::Python(_) => process.spawn(input, output_pipe)?,
-            RunnableProcess::Java(JavaProcessData {
-                built_class_name, ..
-            }) => process.spawn_with_hooks(input, output_pipe, |isolated| {
-                isolated.copy_in_box(built_class_name, "Main.class")
-            })?,
+            RunnableProcess::Java(JavaProcessData { built_class_name }) => process
+                .spawn_with_hooks(input, output_pipe, |isolated| {
+                    isolated.copy_in_box(built_class_name, "Main.class")
+                })?,
         };
 
         Ok(process)

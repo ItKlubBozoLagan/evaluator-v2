@@ -5,6 +5,13 @@ use redis::{Client, TlsCertificates};
 pub fn build_client() -> anyhow::Result<Client> {
     let environment = Environment::get();
 
+    if environment.redis_queue_key.is_empty() {
+        anyhow::bail!("REDIS_QUEUE_KEY must not be empty");
+    }
+    if environment.redis_url.contains("#insecure") {
+        anyhow::bail!("insecure Redis TLS verification is not supported");
+    }
+
     if environment.redis_url.starts_with("rediss://") {
         let ca_file = environment
             .redis_ca_file

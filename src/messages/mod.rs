@@ -81,22 +81,6 @@ impl Evaluation {
             | Evaluation::OutputOnly(OutputOnlyEvaluation { id, .. }) => *id,
         }
     }
-
-    pub fn needed_boxes(&self) -> u32 {
-        if matches!(self, Evaluation::Interactive(_)) {
-            2
-        } else {
-            1
-        }
-    }
-
-    pub fn testcases(&self) -> &[Testcase] {
-        match self {
-            Evaluation::Batch(value) => &value.testcases,
-            Evaluation::Interactive(value) => &value.testcases,
-            Evaluation::OutputOnly(value) => std::slice::from_ref(&value.testcase),
-        }
-    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]

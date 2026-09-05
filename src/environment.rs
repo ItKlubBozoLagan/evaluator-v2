@@ -17,6 +17,7 @@ pub struct CompileCache {
     pub cache_dir: String,
 }
 
+#[derive(Debug)]
 pub struct Environment {
     pub force_debug_logs: bool,
     pub max_evaluations: u8,
@@ -31,75 +32,81 @@ pub struct Environment {
     pub run_with_quotas: bool,
     pub exit_on_empty_queue: bool,
     pub compile_cache: Option<CompileCache>,
-    pub health_bind: String,
+
     pub system_environment: SystemEnvironment,
 }
 
 static ENVIRONMENT: OnceCell<Environment> = OnceCell::const_new();
 
 impl Environment {
-    fn new() -> anyhow::Result<Self> {
+    fn new() -> Self {
         let system_environment = SystemEnvironment {
             pipe_max_size: read_pipe_max_size()
                 .map(|it| min(it, HARD_PIPE_MAX_SIZE_LIMIT))
-                .map_err(|err| anyhow::anyhow!("failed to read pipe limit: {err}"))?,
+                .expect("/proc/sys/fs/pipe-max-size not found"),
         };
 
-        let max_evaluations = parse_env("EVALUATOR_MAX_EVALUATIONS", 2_u8)?;
-        if max_evaluations < 2 {
-            anyhow::bail!("EVALUATOR_MAX_EVALUATIONS must be at least 2");
-        }
-
-        let redis_url = env::var("REDIS_URL").unwrap_or("redis://localhost:6379".to_string());
-        let redis_require_tls = parse_env("REDIS_REQUIRE_TLS", false)?;
-        if redis_require_tls && !redis_url.starts_with("rediss://") {
-            anyhow::bail!("REDIS_URL must use rediss:// when REDIS_REQUIRE_TLS=true");
-        }
-        if redis_url.contains("#insecure") {
-            anyhow::bail!("insecure Redis TLS verification is not supported");
-        }
-
-        let redis_queue_key =
-            env::var("REDIS_QUEUE_KEY").unwrap_or("evaluator_msg_queue".to_string());
-        if redis_queue_key.is_empty() {
-            anyhow::bail!("REDIS_QUEUE_KEY must not be empty");
-        }
-
-        let compile_cache = parse_env("COMPILE_CACHE_ENABLED", false)?
-            .then(|| env::var("COMPILE_CACHE_DIR").map(|cache_dir| CompileCache { cache_dir }))
-            .transpose()
-            .map_err(|_| {
-                anyhow::anyhow!("COMPILE_CACHE_DIR must be set when caching is enabled")
-            })?;
-
-        Ok(Self {
-            force_debug_logs: parse_env("FORCE_DEBUG_LOGS", false)?,
-            max_evaluations,
-            redis_url,
+        Self {
+            force_debug_logs: env::var("FORCE_DEBUG_LOGS")
+                .unwrap_or("false".to_string())
+                .parse::<bool>()
+                .expect("FORCE_DEBUG_LOGS must be a boolean"),
+            max_evaluations: env::var("EVALUATOR_MAX_EVALUATIONS")
+                .unwrap_or("2".to_string())
+                .parse::<u8>()
+                .expect("EVALUATOR_MAX_EVALUATIONS must be a number"),
+            redis_url: env::var("REDIS_URL").unwrap_or("redis://localhost:6379".to_string()),
             redis_ca_file: env::var_os("REDIS_CA_FILE").map(PathBuf::from),
-            redis_require_tls,
-            redis_queue_key,
-            redis_connection_timeout: Duration::from_millis(parse_env(
-                "REDIS_CONNECTION_TIMEOUT_MS",
-                5000_u64,
-            )?),
-            redis_command_timeout: Duration::from_millis(parse_env(
-                "REDIS_COMMAND_TIMEOUT_MS",
-                5000_u64,
-            )?),
-            redis_publish_attempts: parse_env("REDIS_PUBLISH_ATTEMPTS", 5_u32)?.max(1),
-            run_with_cgroups: parse_env("RUN_WITH_CGROUPS", true)?,
-            run_with_quotas: parse_env("RUN_WITH_QUOTAS", true)?,
-            exit_on_empty_queue: parse_env("EXIT_ON_EMPTY_QUEUE", false)?,
-            compile_cache,
-            health_bind: env::var("EVALUATOR_HEALTH_BIND").unwrap_or("0.0.0.0:8080".to_string()),
+            redis_require_tls: env::var("REDIS_REQUIRE_TLS")
+                .unwrap_or("false".to_string())
+                .parse::<bool>()
+                .expect("REDIS_REQUIRE_TLS must be a boolean"),
+            redis_queue_key: env::var("REDIS_QUEUE_KEY")
+                .unwrap_or("evaluator_msg_queue".to_string()),
+            redis_connection_timeout: Duration::from_millis(
+                env::var("REDIS_CONNECTION_TIMEOUT_MS")
+                    .unwrap_or("5000".to_string())
+                    .parse::<u64>()
+                    .expect("REDIS_CONNECTION_TIMEOUT_MS must be a number"),
+            ),
+            redis_command_timeout: Duration::from_millis(
+                env::var("REDIS_COMMAND_TIMEOUT_MS")
+                    .unwrap_or("5000".to_string())
+                    .parse::<u64>()
+                    .expect("REDIS_COMMAND_TIMEOUT_MS must be a number"),
+            ),
+            redis_publish_attempts: env::var("REDIS_PUBLISH_ATTEMPTS")
+                .unwrap_or("5".to_string())
+                .parse::<u32>()
+                .expect("REDIS_PUBLISH_ATTEMPTS must be a number")
+                .max(1),
+            run_with_cgroups: env::var("RUN_WITH_CGROUPS")
+                .unwrap_or("true".to_string())
+                .parse::<bool>()
+                .expect("RUN_WITH_CGROUPS must be a boolean"),
+            run_with_quotas: env::var("RUN_WITH_QUOTAS")
+                .unwrap_or("true".to_string())
+                .parse::<bool>()
+                .expect("RUN_WITH_QUOTAS must be a boolean"),
+            exit_on_empty_queue: env::var("EXIT_ON_EMPTY_QUEUE")
+                .unwrap_or("false".to_string())
+                .parse::<bool>()
+                .expect("EXIT_ON_EMPTY_QUEUE must be a boolean"),
+            compile_cache: env::var("COMPILE_CACHE_ENABLED")
+                .unwrap_or("false".to_string())
+                .parse::<bool>()
+                .expect("COMPILE_CACHE_ENABLED must be a boolean")
+                .then(|| CompileCache {
+                    cache_dir: env::var("COMPILE_CACHE_DIR")
+                        .expect("COMPILE_CACHE_DIR must be set"),
+                }),
             system_environment,
-        })
+        }
     }
 
     pub fn init() -> anyhow::Result<()> {
         ENVIRONMENT
-            .set(Environment::new()?)
+            .set(Environment::new())
             .map_err(|_| anyhow::anyhow!("environment already initialized"))
     }
 
@@ -111,22 +118,9 @@ impl Environment {
     }
 }
 
-fn parse_env<T>(name: &str, default: T) -> anyhow::Result<T>
-where
-    T: std::str::FromStr,
-    T::Err: std::fmt::Display,
-{
-    match env::var(name) {
-        Ok(value) => value
-            .parse()
-            .map_err(|err| anyhow::anyhow!("{name} has an invalid value: {err}")),
-        Err(env::VarError::NotPresent) => Ok(default),
-        Err(err) => Err(anyhow::anyhow!("failed to read {name}: {err}")),
-    }
-}
-
 fn read_pipe_max_size() -> anyhow::Result<usize> {
     let content = fs::read_to_string("/proc/sys/fs/pipe-max-size")?;
     let pipe_max_size: usize = content.trim().parse()?;
+
     Ok(pipe_max_size)
 }

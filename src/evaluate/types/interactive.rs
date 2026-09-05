@@ -1,9 +1,7 @@
-use crate::evaluate::compilation::process_compilation;
+use crate::evaluate::compilation::{process_compilation, CompilationError};
 use crate::evaluate::output::CheckerResult;
 use crate::evaluate::runnable::{ProcessRunError, RunnableProcess};
-use crate::evaluate::{
-    aggregate_verdict, EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict,
-};
+use crate::evaluate::{SuccessfulEvaluation, TestcaseResult, Verdict};
 use crate::isolate::meta::ProcessStatus;
 use crate::isolate::{IsolateError, IsolateLimits, ProcessInput};
 use crate::messages::{InteractiveEvaluation, Testcase};
@@ -70,22 +68,11 @@ fn interact_with_testcase(
     )?;
 
     let process_output = process.wait_for_output()?;
-    let interactor_output = interactor.wait_for_output()?;
-    drop(write_handle);
-    let process_meta = process.load_meta()?;
+    let _ = interactor.wait_for_output()?;
 
-    if !interactor_output.status.success() {
-        process.cleanup_and_reset()?;
-        interactor.cleanup_and_reset()?;
-        return Ok(TestcaseResult {
-            id: testcase.id.clone(),
-            verdict: Verdict::JudgingError,
-            memory: process_meta.cg_mem_kb,
-            time: process_meta.time_ms,
-            output: None,
-            error: Some(String::from_utf8_lossy(&interactor_output.stderr).to_string()),
-        });
-    }
+    drop(write_handle);
+
+    let process_meta = process.load_meta()?;
 
     // TODO: may not work, stdout is connected to interactor
     let process_stdout = String::from_utf8_lossy(&process_output.stdout).to_string();
@@ -95,11 +82,12 @@ fn interact_with_testcase(
         process.cleanup_and_reset()?;
         interactor.cleanup_and_reset()?;
 
-        let verdict = match process_meta.status {
-            Some(ProcessStatus::TimedOut) => Verdict::TimeLimitExceeded,
-            Some(ProcessStatus::SandboxError) => Verdict::SystemError,
-            _ if process_meta.cg_oom_killed => Verdict::MemoryLimitExceeded,
-            _ => Verdict::RuntimeError,
+        let verdict = if let Some(ProcessStatus::TimedOut) = process_meta.status {
+            Verdict::TimeLimitExceeded
+        } else if process_meta.cg_oom_killed {
+            Verdict::MemoryLimitExceeded
+        } else {
+            Verdict::RuntimeError
         };
 
         return Ok(TestcaseResult {
@@ -118,16 +106,13 @@ fn interact_with_testcase(
     process.cleanup_and_reset()?;
     interactor.cleanup_and_reset()?;
 
-    let interactor_result = {
-        let mut interactor_meta_file = File::open(&out_meta_file)?;
+    let mut interactor_meta_file = File::open(&out_meta_file)?;
 
-        let mut buffer = String::new();
-        interactor_meta_file.read_to_string(&mut buffer)?;
+    let mut interactor_result = String::new();
 
-        fs::remove_file(&out_meta_file)?;
+    interactor_meta_file.read_to_string(&mut interactor_result)?;
 
-        buffer
-    };
+    fs::remove_file(&out_meta_file)?;
 
     let check_result = CheckerResult::try_from(interactor_result.trim());
 
@@ -141,7 +126,7 @@ fn interact_with_testcase(
                 time: 0,
                 output: Some(process_stdout),
                 error: Some(err.to_string()),
-            });
+            })
         }
     };
 
@@ -166,16 +151,14 @@ pub fn evaluate(
     evaluation: &InteractiveEvaluation,
     box_id: u8,
     interactor_box_id: u8,
-) -> Result<SuccessfulEvaluation, EvaluationError> {
-    let compiled_program = process_compilation(&evaluation.code, &evaluation.language, box_id)
-        .map_err(EvaluationError::contestant_compilation)?;
+) -> Result<SuccessfulEvaluation, CompilationError> {
+    let compiled_program = process_compilation(&evaluation.code, &evaluation.language, box_id)?;
 
     let compiled_interactor = process_compilation(
         &evaluation.checker.script,
         &evaluation.checker.language,
         interactor_box_id,
-    )
-    .map_err(EvaluationError::judging_compilation)?;
+    )?;
 
     let program = compiled_program.process;
 
@@ -185,15 +168,13 @@ pub fn evaluate(
         time_limit: evaluation.time_limit as f32 / 1000.0,
         memory_limit: evaluation.memory_limit,
     };
+
     let mut global_verdict = Verdict::Accepted;
 
     let mut testcase_results = Vec::<TestcaseResult>::new();
 
     for testcase in &evaluation.testcases {
-        if !evaluation.evaluate_all
-            && (global_verdict != Verdict::Accepted
-                && !matches!(global_verdict, Verdict::Custom(_)))
-        {
+        if !evaluation.evaluate_all && (global_verdict != Verdict::Accepted && !matches!(global_verdict, Verdict::Custom(_))) {
             testcase_results.push(TestcaseResult {
                 id: testcase.id.clone(),
                 verdict: Verdict::Skipped,
@@ -230,7 +211,7 @@ pub fn evaluate(
 
         testcase_results.push(result);
 
-        global_verdict = aggregate_verdict(global_verdict, result_verdict);
+        global_verdict = result_verdict;
     }
 
     Ok(SuccessfulEvaluation {

@@ -1,5 +1,3 @@
-#!/bin/bash
-
 set -ueo pipefail
 
 echo "---- Python version: ----"

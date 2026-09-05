@@ -1,8 +1,0 @@
-.git
-.github
-.idea
-target/*
-!target/release/
-target/release/*
-!target/release/kontestis-evaluator-v2
-Dockerfile.debug

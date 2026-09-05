@@ -1,5 +1,6 @@
+use crate::evaluate::compilation::CompilationError;
 use crate::evaluate::output::{CheckerResult, OutputChecker};
-use crate::evaluate::{EvaluationError, SuccessfulEvaluation, TestcaseResult, Verdict};
+use crate::evaluate::{SuccessfulEvaluation, TestcaseResult, Verdict};
 use crate::messages::{OutputOnlyEvaluation, Testcase};
 
 fn evaluate_with_testcase(
@@ -38,9 +39,8 @@ fn evaluate_with_testcase(
 pub fn evaluate(
     evaluation: &OutputOnlyEvaluation,
     box_id: u8,
-) -> Result<SuccessfulEvaluation, EvaluationError> {
-    let checker = OutputChecker::try_from((box_id, &evaluation.checker))
-        .map_err(EvaluationError::judging_compilation)?;
+) -> Result<SuccessfulEvaluation, CompilationError> {
+    let checker = OutputChecker::try_from((box_id, &evaluation.checker))?;
 
     let result = evaluate_with_testcase(&evaluation.output, &checker, &evaluation.testcase, box_id);
 
