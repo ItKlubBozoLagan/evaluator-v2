@@ -2,9 +2,7 @@ use crate::environment::Environment;
 use std::cmp::min;
 use std::os::fd::{AsRawFd, BorrowedFd};
 use thiserror::Error;
-use tokio::runtime::Handle;
-use tokio::task::JoinHandle;
-use tracing::{debug, warn};
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum SafeFdWriteError {
@@ -15,46 +13,16 @@ pub enum SafeFdWriteError {
     IOError(#[from] std::io::Error),
 }
 
-#[derive(Debug)]
-pub enum WriteHandle {
-    Ignored,
-    Direct,
-    Async(JoinHandle<()>),
-}
-
-#[derive(Debug)]
-pub enum LargeWriteStrategy {
-    Async,
-
-    // if the input is too large, don't do anything and leave writing to the caller
-    //  usually what the caller does is less efficient than what this function does
-    Ignore,
-}
-
-impl Drop for WriteHandle {
-    fn drop(&mut self) {
-        let WriteHandle::Async(handle) = self else {
-            return;
-        };
-
-        handle.abort();
-    }
-}
-
-pub fn write_to_fd_safe(
-    fd: BorrowedFd,
-    input: &[u8],
-    strategy: LargeWriteStrategy,
-) -> Result<WriteHandle, SafeFdWriteError> {
+pub fn write_to_fd_safe(fd: BorrowedFd, input: &[u8]) -> Result<bool, SafeFdWriteError> {
     let current_pipe_buf_size =
         nix::fcntl::fcntl(fd.as_raw_fd(), nix::fcntl::FcntlArg::F_GETPIPE_SZ)?;
 
     let input_size = input.len();
 
     if input_size < (current_pipe_buf_size as usize) {
-        nix::unistd::write(fd, input)?;
+        write_all_fd(fd, input)?;
 
-        return Ok(WriteHandle::Direct);
+        return Ok(true);
     }
 
     let needed_pipe_buf = min(
@@ -73,23 +41,28 @@ pub fn write_to_fd_safe(
     debug!("increasing pipe buffer size to {}", needed_pipe_buf);
 
     if input_size < needed_pipe_buf {
-        nix::unistd::write(fd, input)?;
+        write_all_fd(fd, input)?;
 
-        return Ok(WriteHandle::Direct);
+        return Ok(true);
     }
 
-    match strategy {
-        LargeWriteStrategy::Async => {
-            let fd_clone = fd.try_clone_to_owned()?;
-            let input_clone = input.to_vec();
-            let handle = Handle::current().spawn(async move {
-                if let Err(err) = nix::unistd::write(&fd_clone, &input_clone) {
-                    warn!("failed to async write to pipe: {}", err);
-                };
-            });
+    Ok(false)
+}
 
-            Ok(WriteHandle::Async(handle))
+fn write_all_fd(fd: BorrowedFd<'_>, mut input: &[u8]) -> Result<(), SafeFdWriteError> {
+    while !input.is_empty() {
+        match nix::unistd::write(fd, input) {
+            Ok(0) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::WriteZero,
+                    "pipe write returned zero bytes",
+                )
+                .into());
+            }
+            Ok(written) => input = &input[written..],
+            Err(nix::errno::Errno::EINTR) => continue,
+            Err(err) => return Err(err.into()),
         }
-        LargeWriteStrategy::Ignore => Ok(WriteHandle::Ignored),
     }
+    Ok(())
 }

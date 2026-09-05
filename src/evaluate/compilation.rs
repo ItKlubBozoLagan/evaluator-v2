@@ -101,9 +101,11 @@ fn check_cached_compile(
             process: match ctx.language {
                 EvaluationLanguage::Java => RunnableProcess::Java(JavaProcessData {
                     built_class_name: ctx.binary_path.clone(),
+                    temporary: false,
                 }),
                 _ => RunnableProcess::Compiled(CompiledProcessData {
                     executable_path: ctx.binary_path.clone(),
+                    temporary: false,
                 }),
             },
             compiler_stderr: Some(stderr),
@@ -225,7 +227,12 @@ fn compile(
     }
 
     process.move_out_of_box(&ctx.binary_file_name, &ctx.binary_path)?;
-    process.cleanup_and_reset()?;
+    if let Err(error) = process.cleanup_and_reset() {
+        if Environment::get().compile_cache.is_none() {
+            let _ = std::fs::remove_file(&ctx.binary_path);
+        }
+        return Err(error.into());
+    }
 
     if Environment::get().compile_cache.is_some() {
         finalize_compile_cache(&ctx, &output.stderr)?;
@@ -235,9 +242,11 @@ fn compile(
         process: match ctx.language {
             EvaluationLanguage::Java => RunnableProcess::Java(JavaProcessData {
                 built_class_name: ctx.binary_path,
+                temporary: Environment::get().compile_cache.is_none(),
             }),
             _ => RunnableProcess::Compiled(CompiledProcessData {
                 executable_path: ctx.binary_path,
+                temporary: Environment::get().compile_cache.is_none(),
             }),
         },
         compiler_stderr,

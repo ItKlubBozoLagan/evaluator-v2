@@ -42,6 +42,8 @@ pub enum Verdict {
     TimeLimitExceeded,
     #[serde(rename = "memory_limit_exceeded")]
     MemoryLimitExceeded,
+    #[serde(rename = "output_limit_exceeded")]
+    OutputLimitExceeded,
     #[serde(rename = "runtime_error")]
     RuntimeError,
     #[serde(rename = "judging_error")]
@@ -54,10 +56,103 @@ pub enum Verdict {
     Skipped,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum EvaluationError {
+    #[error("contestant compilation failed: {0}")]
+    ContestantCompilation(String),
+    #[error("judging failed: {0}")]
+    Judging(String),
+    #[error("worker failed: {0}")]
+    System(String),
+    #[error("evaluation exceeded the overall deadline")]
+    Deadline,
+}
+
+impl EvaluationError {
+    pub fn contestant_compilation(error: CompilationError) -> Self {
+        match error {
+            CompilationError::CompilationProcessError(message) => {
+                Self::ContestantCompilation(message)
+            }
+            CompilationError::IsolateError(crate::isolate::IsolateError::OutputLimitExceeded) => {
+                Self::ContestantCompilation("compiler output limit exceeded".to_string())
+            }
+            error => Self::System(error.to_string()),
+        }
+    }
+
+    pub fn judging_compilation(error: CompilationError) -> Self {
+        match error {
+            CompilationError::CompilationProcessError(message) => Self::Judging(message),
+            CompilationError::IsolateError(crate::isolate::IsolateError::OutputLimitExceeded) => {
+                Self::Judging("checker output limit exceeded".to_string())
+            }
+            error => Self::System(error.to_string()),
+        }
+    }
+}
+
+impl SuccessfulEvaluation {
+    pub fn error(evaluation_id: u64, verdict: Verdict, message: String) -> Self {
+        Self {
+            evaluation_id,
+            verdict,
+            max_time: 0,
+            max_memory: 0,
+            testcases: vec![],
+            compiler_output: Some(message),
+        }
+    }
+
+    pub fn error_for_evaluation(
+        evaluation: &Evaluation,
+        verdict: Verdict,
+        message: String,
+    ) -> Self {
+        let testcases = evaluation
+            .testcases()
+            .iter()
+            .map(|testcase| TestcaseResult {
+                id: testcase.id.clone(),
+                verdict: verdict.clone(),
+                time: 0,
+                memory: 0,
+                output: None,
+                error: Some(message.clone()),
+            })
+            .collect();
+        Self {
+            evaluation_id: evaluation.get_evaluation_id(),
+            verdict,
+            max_time: 0,
+            max_memory: 0,
+            testcases,
+            compiler_output: None,
+        }
+    }
+}
+
+pub fn aggregate_verdict(current: &Verdict, next: &Verdict) -> Verdict {
+    let current_is_success = matches!(current, Verdict::Accepted | Verdict::Custom(_));
+    let next_is_failure = !matches!(next, Verdict::Accepted | Verdict::Custom(_));
+
+    if current_is_success && next_is_failure {
+        return next.clone();
+    }
+    if matches!(current, Verdict::Accepted) {
+        return next.clone();
+    }
+    current.clone()
+}
+
 pub fn begin_evaluation(
     evaluation: &Evaluation,
     boxes: &[u8],
-) -> Result<SuccessfulEvaluation, CompilationError> {
+) -> Result<SuccessfulEvaluation, EvaluationError> {
+    if crate::deadline::exceeded() {
+        return Err(EvaluationError::Deadline);
+    }
+
     match evaluation {
         Evaluation::Batch(batch_evaluation) => types::batch::evaluate(batch_evaluation, boxes[0]),
         Evaluation::OutputOnly(output_only_evaluation) => {
@@ -66,5 +161,26 @@ pub fn begin_evaluation(
         Evaluation::Interactive(interactive_evaluation) => {
             types::interactive::evaluate(interactive_evaluation, boxes[0], boxes[1])
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Verdict, aggregate_verdict};
+
+    #[test]
+    fn accepted_does_not_replace_an_earlier_failure() {
+        assert_eq!(
+            aggregate_verdict(&Verdict::WrongAnswer, &Verdict::Accepted),
+            Verdict::WrongAnswer
+        );
+    }
+
+    #[test]
+    fn first_failure_is_preserved() {
+        assert_eq!(
+            aggregate_verdict(&Verdict::TimeLimitExceeded, &Verdict::RuntimeError),
+            Verdict::TimeLimitExceeded
+        );
     }
 }
