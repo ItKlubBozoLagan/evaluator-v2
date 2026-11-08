@@ -13,7 +13,8 @@ pub struct SystemEnvironment {
 
 #[derive(Debug)]
 pub struct CompileCache {
-    pub cache_dir: String,
+    pub cache_dir: PathBuf,
+    pub max_size_bytes: u64,
 }
 
 #[derive(Debug)]
@@ -76,8 +77,14 @@ impl Environment {
                 .parse::<bool>()
                 .expect("COMPILE_CACHE_ENABLED must be a boolean")
                 .then(|| CompileCache {
-                    cache_dir: env::var("COMPILE_CACHE_DIR")
+                    cache_dir: env::var_os("COMPILE_CACHE_DIR")
+                        .map(PathBuf::from)
                         .expect("COMPILE_CACHE_DIR must be set"),
+                    max_size_bytes: env::var("COMPILE_CACHE_MAX_SIZE_MB")
+                        .unwrap_or("1024".to_string())
+                        .parse::<u64>()
+                        .expect("COMPILE_CACHE_MAX_SIZE_MB must be a number")
+                        << 20,
                 }),
             system_environment,
         }

@@ -2,6 +2,8 @@ use crate::environment::Environment;
 use crate::state::AppState;
 use crate::tracing::setup_tracing;
 use std::collections::HashSet;
+use std::fs::DirBuilder;
+use std::os::unix::fs::DirBuilderExt;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Notify};
 use ::tracing::{error, info};
@@ -23,6 +25,13 @@ fn main() -> anyhow::Result<()> {
     }
 
     setup_tracing();
+
+    if let Some(cache) = &Environment::get().compile_cache {
+        DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(&cache.cache_dir)?;
+    }
 
     let rt = tokio::runtime::Builder::new_current_thread()
         .worker_threads(1)
