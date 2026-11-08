@@ -1,20 +1,17 @@
-use crate::environment::{CompileCache, Environment};
+use crate::environment::Environment;
+use crate::evaluate::compile_cache;
 use crate::evaluate::runnable::{
     CompiledProcessData, JavaProcessData, PythonProcessData, RunnableProcess,
 };
+use crate::isolate::meta::ProcessStatus;
 use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess, ProcessInput};
 use crate::messages::EvaluationLanguage;
-use crate::util;
-use lazy_static::lazy_static;
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
-use std::io::Write;
-use std::os::fd::AsRawFd;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex, Weak};
+use crate::util::temp_file::TempFile;
+use std::path::Path;
 use thiserror::Error;
-use tracing::debug;
+
+// name of the compiled artifact inside the compilation box
+pub const BINARY_NAME: &str = "compiled.bin";
 
 #[derive(Debug)]
 pub struct CompilationResult {
@@ -37,12 +34,15 @@ pub enum CompilationError {
 
     #[error("Isolate error: {0}")]
     IsolateError(#[from] IsolateError),
+}
 
-    #[error("syscall error: {0}")]
-    NixError(#[from] nix::Error),
-
-    #[error("compilation cache in an unsupported state: {0}")]
-    InvalidCache(Cow<'static, str>),
+#[derive(Debug)]
+pub enum CompilerOutput {
+    Success { binary: TempFile, stderr: String },
+    // the compiler rejected the code, this is deterministic so it can be cached
+    Rejected { stderr: String },
+    // the compiler was interrupted (timeout, signal, OOM, sandbox error), not cached
+    Aborted { stderr: String },
 }
 
 pub fn process_compilation(
@@ -50,152 +50,55 @@ pub fn process_compilation(
     language: &EvaluationLanguage,
     box_id: u8,
 ) -> Result<CompilationResult, CompilationError> {
-    match language {
-        EvaluationLanguage::Python => Ok(CompilationResult {
+    if let EvaluationLanguage::Python = language {
+        return Ok(CompilationResult {
             process: RunnableProcess::Python(PythonProcessData {
                 code: code.to_string(),
             }),
             compiler_stderr: None,
-        }),
-        _ => compile(code, language, box_id),
+        });
     }
-}
 
-struct CompilationCtx<'a> {
-    code: &'a str,
-    language: &'a EvaluationLanguage,
-    box_id: u8,
-
-    hash: [u8; 32],
-    #[allow(unused)]
-    hash_hex: String,
-    binary_file_name: String,
-    binary_path: PathBuf,
-    stderr_path: PathBuf,
-    done_path: PathBuf,
-}
-
-fn check_cached_compile(
-    ctx: &CompilationCtx,
-) -> Result<Option<CompilationResult>, CompilationError> {
-    let env = Environment::get();
-    #[allow(unused)]
-    let Some(CompileCache { ref cache_dir }) = env.compile_cache else {
-        return Ok(None);
+    let output = match &Environment::get().compile_cache {
+        Some(cache) => compile_cache::get_or_compile(cache, code, language, |out_dir| {
+            compile(code, language, box_id, out_dir)
+        })?,
+        None => compile(code, language, box_id, Path::new("/tmp"))?,
     };
 
-    let ram_exists = std::fs::exists(&ctx.done_path)?;
-    if ram_exists {
-        let stderr = std::fs::read_to_string(&ctx.stderr_path)
-            .map_err(|err| CompilationError::InvalidCache(err.to_string().into()))?;
-
-        if !std::fs::exists(&ctx.binary_path)? {
-            return Err(CompilationError::InvalidCache(
-                "binary doesn't exist".into(),
-            ));
+    let (binary, stderr) = match output {
+        CompilerOutput::Success { binary, stderr } => (binary, stderr),
+        CompilerOutput::Rejected { stderr } | CompilerOutput::Aborted { stderr } => {
+            return Err(CompilationError::CompilationProcessError(stderr));
         }
-
-        debug!("cached compiled binary found");
-
-        return Ok(Some(CompilationResult {
-            process: match ctx.language {
-                EvaluationLanguage::Java => RunnableProcess::Java(JavaProcessData {
-                    built_class_name: ctx.binary_path.clone(),
-                }),
-                _ => RunnableProcess::Compiled(CompiledProcessData {
-                    executable_path: ctx.binary_path.clone(),
-                }),
-            },
-            compiler_stderr: Some(stderr),
-        }));
-    }
-
-    // TODO:
-    Ok(None)
-}
-
-fn create_compile_ctx<'a>(
-    code: &'a str,
-    language: &'a EvaluationLanguage,
-    box_id: u8,
-) -> CompilationCtx<'a> {
-    let code_hash = util::hash::sha256(code.as_bytes());
-    let code_hash_hex = hex::encode(code_hash);
-
-    let maybe_cache_suffix = if Environment::get().compile_cache.is_some() {
-        ""
-    } else {
-        &format!(".{}", util::general::random_bytes(8))
     };
 
-    let tmp_dir = PathBuf::from("/tmp");
-    let binary_path_name = format!("{code_hash_hex}{maybe_cache_suffix}.bin");
-    let (file_path, stderr_path, done_path) = (
-        tmp_dir.join(&binary_path_name),
-        tmp_dir.join(format!("{code_hash_hex}{maybe_cache_suffix}.stderr")),
-        tmp_dir.join(format!("{code_hash_hex}{maybe_cache_suffix}.done")),
-    );
-
-    CompilationCtx {
-        code,
-        language,
-        box_id,
-        hash: code_hash,
-        hash_hex: code_hash_hex,
-        binary_file_name: binary_path_name,
-        binary_path: file_path,
-        stderr_path,
-        done_path,
-    }
+    Ok(CompilationResult {
+        process: match language {
+            EvaluationLanguage::Java => RunnableProcess::Java(JavaProcessData {
+                built_class_name: binary,
+            }),
+            _ => RunnableProcess::Compiled(CompiledProcessData {
+                executable_path: binary,
+            }),
+        },
+        compiler_stderr: Some(stderr),
+    })
 }
 
-lazy_static! {
-    static ref COMPILATION_LOCKS: Mutex<HashMap<[u8; 32], Weak<Mutex<()>>>> =
-        Mutex::new(HashMap::new());
-}
-
-fn cleanup_mutex_map(map: &mut HashMap<[u8; 32], Weak<Mutex<()>>>) {
-    map.retain(|_, v| Weak::strong_count(v) > 0);
-}
-
-fn mutex_by_code(ctx: &CompilationCtx) -> Arc<Mutex<()>> {
-    let mut map_lock = COMPILATION_LOCKS.lock().expect("map_mutex poisoned");
-
-    cleanup_mutex_map(&mut map_lock);
-
-    if let Some(code_mutex) = map_lock.get(&ctx.hash).and_then(Weak::upgrade) {
-        return code_mutex;
-    };
-
-    let new_code_mutex = Arc::new(Mutex::new(()));
-    map_lock.insert(ctx.hash, Arc::downgrade(&new_code_mutex));
-
-    drop(map_lock);
-
-    new_code_mutex
-}
-
+// compiles the code in isolate, on success the binary is placed in `out_dir`
 fn compile(
     code: &str,
     language: &EvaluationLanguage,
     box_id: u8,
-) -> Result<CompilationResult, CompilationError> {
-    let ctx = create_compile_ctx(code, language, box_id);
-
-    let code_mutex = mutex_by_code(&ctx);
-    let _guard = code_mutex.lock().expect("code_mutex poisoned");
-
-    if let Some(result) = check_cached_compile(&ctx)? {
-        return Ok(result);
-    }
-
-    let (compiler, args, dir_mounts) = ctx
-        .language
-        .get_compiler_command(&ctx.binary_file_name)
-        .ok_or_else(|| CompilationError::UnsupportedLanguage(ctx.language.clone()))?;
+    out_dir: &Path,
+) -> Result<CompilerOutput, CompilationError> {
+    let (compiler, args, dir_mounts) = language
+        .get_compiler_command(BINARY_NAME)
+        .ok_or_else(|| CompilationError::UnsupportedLanguage(language.clone()))?;
 
     let mut process = IsolatedProcess::new(
-        ctx.box_id,
+        box_id,
         &CommandMeta {
             executable: compiler.to_string(),
             args,
@@ -210,55 +113,24 @@ fn compile(
         dir_mounts,
     )?;
 
-    process.spawn(ProcessInput::StdIn(ctx.code.as_bytes().to_vec()), None)?;
+    process.spawn(ProcessInput::StdIn(code.as_bytes().to_vec()), None)?;
 
     let output = process.wait_for_output()?;
+    let meta = process.load_meta()?;
 
-    let compiler_stderr = Some(String::from_utf8_lossy(&output.stderr).to_string());
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
 
-    if !output.status.success() {
-        process.cleanup_and_reset()?;
+    let result = if output.status.success() {
+        let binary = TempFile::new_in(out_dir);
+        process.move_out_of_box(BINARY_NAME, binary.path())?;
+        CompilerOutput::Success { binary, stderr }
+    } else if matches!(meta.status, Some(ProcessStatus::RuntimeError)) && !meta.cg_oom_killed {
+        CompilerOutput::Rejected { stderr }
+    } else {
+        CompilerOutput::Aborted { stderr }
+    };
 
-        return Err(CompilationError::CompilationProcessError(
-            String::from_utf8_lossy(&output.stderr).to_string(),
-        ));
-    }
-
-    process.move_out_of_box(&ctx.binary_file_name, &ctx.binary_path)?;
     process.cleanup_and_reset()?;
 
-    if Environment::get().compile_cache.is_some() {
-        finalize_compile_cache(&ctx, &output.stderr)?;
-    }
-
-    Ok(CompilationResult {
-        process: match ctx.language {
-            EvaluationLanguage::Java => RunnableProcess::Java(JavaProcessData {
-                built_class_name: ctx.binary_path,
-            }),
-            _ => RunnableProcess::Compiled(CompiledProcessData {
-                executable_path: ctx.binary_path,
-            }),
-        },
-        compiler_stderr,
-    })
-}
-
-fn finalize_compile_cache(
-    cache_ctx: &CompilationCtx,
-    stderr: &[u8],
-) -> Result<(), CompilationError> {
-    let mut stderr_file = File::create(&cache_ctx.stderr_path)?;
-    stderr_file.write_all(stderr)?;
-    nix::unistd::fsync(stderr_file.as_raw_fd())?;
-
-    let binary_file = File::open(&cache_ctx.stderr_path)?;
-    nix::unistd::fsync(binary_file.as_raw_fd())?;
-
-    OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&cache_ctx.done_path)?;
-
-    Ok(())
+    Ok(result)
 }

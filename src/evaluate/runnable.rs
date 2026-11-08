@@ -1,8 +1,8 @@
 use crate::isolate::meta::ProcessMeta;
 use crate::isolate::{CommandMeta, IsolateError, IsolateLimits, IsolatedProcess, ProcessInput};
 use crate::util;
+use crate::util::temp_file::TempFile;
 use std::os::fd::OwnedFd;
-use std::path::PathBuf;
 use std::process::Output;
 use thiserror::Error;
 
@@ -14,7 +14,7 @@ pub enum ProcessRunError {
 
 #[derive(Debug)]
 pub struct CompiledProcessData {
-    pub executable_path: PathBuf,
+    pub executable_path: TempFile,
 }
 
 #[derive(Debug)]
@@ -24,7 +24,7 @@ pub struct PythonProcessData {
 
 #[derive(Debug)]
 pub struct JavaProcessData {
-    pub built_class_name: PathBuf,
+    pub built_class_name: TempFile,
 }
 
 #[derive(Debug)]
@@ -71,12 +71,12 @@ impl RunnableProcess {
         match self {
             RunnableProcess::Compiled(CompiledProcessData { executable_path }) => process
                 .spawn_with_hooks(input, output_pipe, |isolated| {
-                    isolated.copy_in_box(executable_path, "program")
+                    isolated.copy_in_box(executable_path.path(), "program")
                 })?,
             RunnableProcess::Python(_) => process.spawn(input, output_pipe)?,
             RunnableProcess::Java(JavaProcessData { built_class_name }) => process
                 .spawn_with_hooks(input, output_pipe, |isolated| {
-                    isolated.copy_in_box(built_class_name, "Main.class")
+                    isolated.copy_in_box(built_class_name.path(), "Main.class")
                 })?,
         };
 

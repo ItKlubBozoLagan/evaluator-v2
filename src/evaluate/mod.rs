@@ -1,4 +1,5 @@
 mod compilation;
+mod compile_cache;
 mod language;
 mod output;
 pub mod queue_handler;
