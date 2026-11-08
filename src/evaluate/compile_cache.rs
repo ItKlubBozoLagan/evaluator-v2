@@ -18,7 +18,6 @@ use std::fs::{self, File, Metadata};
 use std::io::{self, ErrorKind, Write};
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
-use std::process::Command;
 use std::sync::{Arc, Mutex, PoisonError, TryLockError, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{debug, warn};
@@ -31,8 +30,6 @@ const STALE_TEMP_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 lazy_static! {
     static ref KEY_LOCKS: Mutex<HashMap<[u8; 32], Weak<Mutex<()>>>> = Mutex::new(HashMap::new());
-    static ref COMPILER_VERSIONS: Mutex<HashMap<&'static str, Option<String>>> =
-        Mutex::new(HashMap::new());
     static ref EVICTION_LOCK: Mutex<()> = Mutex::new(());
 }
 
@@ -78,41 +75,16 @@ pub fn get_or_compile(
     Ok(output)
 }
 
-// None if the compiler version can't be determined, such compilations aren't cached
+// None for languages without a compilation step
 fn cache_key(code: &str, language: &EvaluationLanguage) -> Option<[u8; 32]> {
-    let version = compiler_version(language)?;
     let (compiler, args, _) = language.get_compiler_command(BINARY_NAME)?;
 
     Some(util::hash::sha256_parts(&[
         format!("{language:?}").as_bytes(),
         compiler.as_bytes(),
         args.join("\0").as_bytes(),
-        version.as_bytes(),
         code.as_bytes(),
     ]))
-}
-
-fn compiler_version(language: &EvaluationLanguage) -> Option<String> {
-    let (program, args) = language.get_compiler_version_command()?;
-
-    let mut versions = COMPILER_VERSIONS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-
-    versions
-        .entry(program)
-        .or_insert_with(|| match Command::new(program).args(args).output() {
-            Ok(output) if output.status.success() => Some(format!(
-                "{}{}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            )),
-            _ => {
-                warn!("failed to determine version of {program}, its compilations won't be cached");
-                None
-            }
-        })
-        .clone()
 }
 
 fn lock_for_key(key: [u8; 32]) -> Arc<Mutex<()>> {

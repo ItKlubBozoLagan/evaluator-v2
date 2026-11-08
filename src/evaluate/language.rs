@@ -28,20 +28,6 @@ fn make_ocaml_compile_script(out_file: &str) -> String {
 
 
 impl EvaluationLanguage {
-    // command whose output identifies the compiler version, used as part of the compile cache key
-    pub fn get_compiler_version_command(&self) -> Option<(&'static str, &'static [&'static str])> {
-        type E = EvaluationLanguage;
-        match self {
-            E::C | E::GnuAsmX86Linux => Some(("/usr/bin/gcc", &["--version"])),
-            E::Cpp => Some(("/usr/bin/g++", &["--version"])),
-            E::Rust => Some(("/usr/bin/rustc", &["--version", "--verbose"])),
-            E::Go => Some(("/usr/bin/go", &["version"])),
-            E::Java => Some(("/usr/bin/javac", &["-version"])),
-            E::OCaml => Some(("/usr/bin/ocamlopt", &["-version"])),
-            E::Python => None,
-        }
-    }
-
     // get compiler command and arguments based on language
     pub fn get_compiler_command(
         &self,
